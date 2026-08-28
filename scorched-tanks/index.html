@@ -1,0 +1,1048 @@
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Scorched Tanks</title>
+<link rel="manifest" href="./manifest.json">
+<meta name="theme-color" content="#0b0b12">
+<style>
+  :root { color-scheme: dark; }
+  html, body { margin:0; padding:0; background:#0b0b12; color:#cdd3e0;
+    font-family: Consolas, "Courier New", monospace; display:flex; flex-direction:column; align-items:center; }
+  h1 { font-size:15px; letter-spacing:1px; color:#7fd0ff; margin:10px 0 4px; }
+  #wrap { display:flex; gap:16px; align-items:flex-start; margin-bottom:20px; flex-wrap:wrap; justify-content:center; }
+  canvas { background:#000; border:2px solid #2a2f45; max-width:100%; }
+  #side { width:300px; font-size:12px; line-height:1.5; }
+  .panel { background:#12131d; border:1px solid #2a2f45; padding:10px 12px; margin-bottom:10px; }
+  .panel h2 { font-size:12px; margin:0 0 6px; color:#9fb0d0; text-transform:uppercase; letter-spacing:1px; }
+  .ok { color:#5ee089; } .bad { color:#ff6b6b; } .warn { color:#ffd166; }
+  kbd { background:#222738; border:1px solid #3a4062; border-radius:3px; padding:0 5px; color:#e6ebf5; }
+  .stat { display:flex; justify-content:space-between; }
+  .stat span:last-child { color:#e6ebf5; }
+  .row { display:flex; align-items:center; gap:8px; margin:5px 0; }
+  .row label { width:52px; color:#9fb0d0; }
+  .row input[type=range] { flex:1; accent-color:#7fd0ff; }
+  .row output { width:44px; text-align:right; color:#e6ebf5; }
+  button { font-family:inherit; font-size:12px; background:#222738; color:#e6ebf5;
+    border:1px solid #3a4062; border-radius:3px; padding:6px 10px; cursor:pointer; }
+  button:hover:not(:disabled) { background:#2e3450; border-color:#7fd0ff; }
+  button:disabled { opacity:.4; cursor:default; }
+  #fire { width:100%; padding:9px; font-weight:bold; letter-spacing:2px; color:#ffd166; border-color:#5a4a20; }
+  #fire:hover:not(:disabled) { background:#3a2f14; border-color:#ffd166; }
+  .hpbar { height:8px; background:#222738; border:1px solid #3a4062; margin:2px 0 7px; }
+  .hpfill { height:100%; transition:width .18s; }
+  #log { height:86px; overflow:auto; font-size:11px; color:#8b95ad; }
+  #log div { margin-bottom:2px; }
+  #stage { position:relative; line-height:0; }
+  #shop { position:absolute; inset:0; background:rgba(8,9,16,0.95); display:none;
+    flex-direction:column; padding:14px 18px; line-height:1.5; overflow:auto; }
+  #shop.open { display:flex; }
+  #shop h2 { font-size:14px; color:#7fd0ff; margin:0 0 2px; letter-spacing:1px; }
+  #shop .sub { font-size:11px; color:#8b95ad; margin-bottom:10px; }
+  .shoprow { display:flex; align-items:center; gap:10px; padding:5px 0;
+    border-bottom:1px solid #1e2233; font-size:12px; }
+  .shoprow .nm { width:130px; color:#e6ebf5; }
+  .shoprow .ds { flex:1; color:#8b95ad; font-size:11px; }
+  .shoprow .ow { width:56px; text-align:right; color:#9fb0d0; font-size:11px; }
+  .shoprow .pr { width:52px; text-align:right; color:#ffd166; }
+  .shoprow button { width:46px; padding:3px 0; }
+  #shop-foot { margin-top:auto; padding-top:12px; display:flex; align-items:center; gap:14px; }
+  #cash { color:#5ee089; font-size:13px; }
+</style>
+
+<h1>SCORCHED TANKS &nbsp;&middot;&nbsp; personal remake</h1>
+<div id="wrap">
+  <div id="stage">
+    <canvas id="c" width="900" height="520"></canvas>
+    <div id="shop">
+      <h2 id="shop-title">Between rounds</h2>
+      <div class="sub" id="shop-sub">Spend your winnings. The CPU is spending too.</div>
+      <div id="shop-items"></div>
+      <div id="shop-foot">
+        <span id="cash">$0</span>
+        <span style="font-size:11px;color:#8b95ad" id="shop-cpu"></span>
+        <button id="shop-done" style="margin-left:auto">Start next round</button>
+      </div>
+    </div>
+  </div>
+  <div id="side">
+    <div class="panel">
+      <h2 id="turn-h">Turn</h2>
+      <div class="stat"><span id="p1-name">Player</span><span id="p1-hp">100</span></div>
+      <div class="hpbar"><div class="hpfill" id="p1-bar" style="width:100%;background:#5ee089"></div></div>
+      <div class="stat"><span id="p2-name">Opponent</span><span id="p2-hp">100</span></div>
+      <div class="hpbar"><div class="hpfill" id="p2-bar" style="width:100%;background:#ff6b6b"></div></div>
+      <div class="stat"><span>Wind</span><span id="wind-o">calm</span></div>
+      <div class="stat"><span>Round</span><span id="round-o">1 &middot; 0&ndash;0</span></div>
+      <div class="stat"><span>Your cash</span><span id="cash-o">$250</span></div>
+      <div class="stat"><span>Your parachutes</span><span id="chute-o">0</span></div>
+    </div>
+    <div class="panel">
+      <h2>Fire control</h2>
+      <div class="row"><label>Weapon</label>
+        <select id="weapon" style="flex:1;font-family:inherit;font-size:12px;background:#222738;color:#e6ebf5;border:1px solid #3a4062;border-radius:3px;padding:4px"></select>
+      </div>
+      <div id="weapon-info" style="color:#8b95ad;font-size:11px;margin:0 0 6px 60px">&nbsp;</div>
+      <div class="row"><label>Angle</label><input id="angle" type="range" min="0" max="180" value="45"><output id="angle-o">45&deg;</output></div>
+      <div class="row"><label>Power</label><input id="power" type="range" min="5" max="100" value="55"><output id="power-o">55</output></div>
+      <button id="fire">FIRE</button>
+    </div>
+    <div class="panel">
+      <h2>Controls</h2>
+      <div><kbd>&larr;</kbd><kbd>&rarr;</kbd> angle &middot; <kbd>&uarr;</kbd><kbd>&darr;</kbd> power</div>
+      <div><kbd>Shift</kbd> + arrows = coarse &middot; <kbd>Space</kbd> fire</div>
+      <div class="row" style="margin-top:8px">
+        <label style="width:64px">CPU skill</label>
+        <select id="difficulty" style="flex:1;font-family:inherit;font-size:12px;background:#222738;color:#e6ebf5;border:1px solid #3a4062;border-radius:3px;padding:4px">
+          <option value="rookie">Rookie</option>
+          <option value="gunner" selected>Gunner</option>
+          <option value="veteran">Veteran</option>
+          <option value="deadeye">Deadeye</option>
+        </select>
+      </div>
+      <div class="row">
+        <label style="width:64px">Match</label>
+        <select id="rounds" style="flex:1;font-family:inherit;font-size:12px;background:#222738;color:#e6ebf5;border:1px solid #3a4062;border-radius:3px;padding:4px">
+          <option value="1">Single round</option>
+          <option value="2" selected>Best of 3</option>
+          <option value="3">Best of 5</option>
+        </select>
+      </div>
+      <div style="margin-top:6px"><button id="newgame">New match</button>
+        <button id="mute" style="margin-left:6px">Sound: on</button></div>
+    </div>
+    <div class="panel">
+      <h2>Log</h2>
+      <div id="log"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+"use strict";
+/* =====================================================================
+   SCORCHED TANKS - Phases 1-2
+   Terrain, two tanks, aim/power/fire, ballistics under gravity + wind,
+   destructible terrain, damage, win/lose, impact feedback.
+   ===================================================================== */
+
+/* ---------- tuning ---------- */
+const CFG = {
+  W: 900, H: 520,
+  gravity: 0.16,        // px per time-unit squared
+  powerScale: 0.13,     // power 100 -> 13 px per time-unit
+  dt: 0.25,
+  stepsPerFrame: 6,
+  maxHealth: 100,
+  tankW: 28, tankH: 13,
+  barrelLen: 22,
+  groundMin: 0.26,      // fraction of H the terrain may rise to
+  groundMax: 0.93,      // fraction of H the terrain may sink to
+  settleFrames: 40,
+  minPower: 5,
+  fallSafe: 14,          // px of collapse a tank shrugs off
+  fallDamagePerPx: 0.45,
+  aiThinkFrames: 45,
+  maxWind: 10,          // wind units, either direction
+  windScale: 0.005,     // horizontal accel per wind unit
+  shakeDecay: 0.88
+};
+
+/* Weapon table. kind drives the special behaviour in flight or on impact;
+   cost/start are what the Phase 5 shop trades in. */
+const WEAPONS = [
+  { id: "shell",  name: "Shell",       kind: "basic",  damage: 34, radius: 26, cost: 0,   start: Infinity, buy: 0 },
+  { id: "heavy",  name: "Heavy Shell", kind: "basic",  damage: 54, radius: 38, cost: 110, start: 2, buy: 2 },
+  { id: "roller", name: "Roller",      kind: "roller", damage: 42, radius: 30, cost: 170, start: 1, buy: 2,
+    rollSpeed: 1.6, rollMax: 300 },
+  { id: "mirv",   name: "MIRV",        kind: "mirv",   damage: 26, radius: 24, cost: 300, start: 0, buy: 1,
+    splits: 5, spread: 1.15 },
+  { id: "nuke",   name: "Baby Nuke",   kind: "basic",  damage: 92, radius: 80, cost: 430, start: 0, buy: 1 },
+  { id: "dirt",   name: "Dirt Ball",   kind: "dirt",   damage: 0,  radius: 62, cost: 80,  start: 1, buy: 2 }
+];
+
+/* AI difficulty. aimError is how far off the intended aim point the AI
+   deliberately places its shot, in pixels; powerJitter roughens the
+   solved power so repeat shots are not identical. */
+const DIFFICULTY = {
+  rookie:  { label: "Rookie",  aimError: 130, powerJitter: 5.0 },
+  gunner:  { label: "Gunner",  aimError: 78,  powerJitter: 3.0 },
+  veteran: { label: "Veteran", aimError: 46,  powerJitter: 1.5 },
+  deadeye: { label: "Deadeye", aimError: 16,  powerJitter: 0.4 }
+};
+let difficulty = "gunner";
+
+/* Between-round purchases. */
+const UPGRADES = [
+  { id: "armor", name: "Armour Plating", cost: 220, desc: "+25 max health",
+    apply(t) { t.maxHealth += 25; t.health = Math.min(t.maxHealth, t.health + 25); } },
+  { id: "chute", name: "Parachute", cost: 120, desc: "cancels one fall",
+    apply(t) { t.parachutes++; } }
+];
+
+const ECON = { startCash: 250, cashPerDamage: 3, roundWinBonus: 350 };
+let roundsToWin = 2;                 // best of three
+let roundNo = 1;
+
+const W = CFG.W, H = CFG.H;
+const cv = document.getElementById("c");
+const ctx = cv.getContext("2d");
+
+/* ---------- terrain ---------- */
+let terrain = new Float32Array(W);
+
+function genTerrain() {
+  const t = new Float32Array(W);
+  const base = H * 0.64;
+  const layers = [];
+  const amps = [90, 44, 19, 8], lens = [860, 340, 155, 72];
+  for (let i = 0; i < 4; i++) {
+    layers.push({
+      amp: amps[i] * (0.55 + Math.random() * 0.9),
+      len: lens[i] * (0.75 + Math.random() * 0.5),
+      ph: Math.random() * Math.PI * 2
+    });
+  }
+  for (let x = 0; x < W; x++) {
+    let y = base;
+    for (const l of layers) y += Math.sin((x / l.len) * Math.PI * 2 + l.ph) * l.amp;
+    t[x] = y;
+  }
+  // box-blur to soften the high-frequency layer
+  const s = new Float32Array(W);
+  const r = 4;
+  for (let x = 0; x < W; x++) {
+    let sum = 0, n = 0;
+    for (let k = -r; k <= r; k++) {
+      const xi = x + k;
+      if (xi < 0 || xi >= W) continue;
+      sum += t[xi]; n++;
+    }
+    s[x] = sum / n;
+  }
+  const lo = H * CFG.groundMin, hi = H * CFG.groundMax;
+  for (let x = 0; x < W; x++) terrain[x] = Math.max(lo, Math.min(hi, s[x]));
+}
+
+function groundAt(x) {
+  const xi = Math.max(0, Math.min(W - 1, Math.round(x)));
+  return terrain[xi];
+}
+
+/* Carve a crater. A heightmap cannot hold caves, so a fully buried blast
+   collapses the column above it instead of hollowing it out. */
+function carve(cx, cy, r) {
+  const x0 = Math.max(0, Math.floor(cx - r)), x1 = Math.min(W - 1, Math.ceil(cx + r));
+  for (let x = x0; x <= x1; x++) {
+    const dx = x - cx, s = r * r - dx * dx;
+    if (s <= 0) continue;
+    const dy = Math.sqrt(s), top = cy - dy, bot = cy + dy;
+    if (terrain[x] < top) terrain[x] = Math.min(H, terrain[x] + 2 * dy);
+    else if (terrain[x] < bot) terrain[x] = Math.min(H, bot);
+  }
+}
+
+/* ---------- tanks ---------- */
+function makeTank(x, color, name) {
+  const t = { x, y: 0, health: CFG.maxHealth, maxHealth: CFG.maxHealth,
+              angle: 45, power: 55, color, name, alive: true,
+              weapon: "shell", ammo: {},
+              cash: ECON.startCash, parachutes: 0, roundWins: 0 };
+  for (const w of WEAPONS) t.ammo[w.id] = w.start;
+  return t;
+}
+
+let tanks = [], turn = 0, state = "aim", stateTimer = 0, winner = null, matchWinner = null;
+let wind = 0, shake = 0;
+
+/* Wind is rerolled at the start of every turn and shown before the player
+   commits to a shot, so it is information, not a surprise. */
+function rollWind() {
+  wind = (Math.random() * 2 - 1) * CFG.maxWind;
+  if (Math.abs(wind) < 0.4) wind = 0;
+}
+
+function pivot(t) { return { x: t.x, y: t.y - CFG.tankH }; }
+
+function muzzle(t) {
+  const p = pivot(t), rad = t.angle * Math.PI / 180;
+  return { x: p.x + Math.cos(rad) * CFG.barrelLen, y: p.y - Math.sin(rad) * CFG.barrelLen };
+}
+
+/* Re-seat every tank on the surface. After a blast the ground may have
+   dropped out from under one, which hurts unless it packed a parachute. */
+function settleTanks(applyFall) {
+  for (const t of tanks) {
+    const g = groundAt(t.x);
+    if (applyFall && t.alive) {
+      const drop = g - t.y;                       // positive = ground fell away
+      if (drop > CFG.fallSafe) {
+        if (t.parachutes > 0) {
+          t.parachutes--;
+          log(t.name + " deploys a parachute (" + t.parachutes + " left).");
+        } else {
+          const dmg = Math.round((drop - CFG.fallSafe) * CFG.fallDamagePerPx);
+          if (dmg > 0) {
+            t.health -= dmg;
+            log(t.name + " takes " + dmg + " from the fall.");
+            if (t.health <= 0) { t.health = 0; t.alive = false; log(t.name + " destroyed."); }
+          }
+        }
+      }
+    }
+    t.y = g;
+  }
+}
+
+/* ---------- projectiles ---------- */
+/* A list, not a single shot, because a MIRV becomes several in flight. */
+let projs = [];
+let explosions = [];
+
+function weaponById(id) { return WEAPONS.find(w => w.id === id) || WEAPONS[0]; }
+
+function fire() {
+  if (state !== "aim") return;
+  const t = tanks[turn];
+  let w = weaponById(t.weapon);
+  if (!(t.ammo[w.id] > 0)) { w = WEAPONS[0]; t.weapon = w.id; }   // out of stock
+  if (t.ammo[w.id] !== Infinity) t.ammo[w.id]--;
+
+  const rad = t.angle * Math.PI / 180;
+  const v = t.power * CFG.powerScale;
+  const m = muzzle(t);
+  projs = [{ x: m.x, y: m.y, vx: Math.cos(rad) * v, vy: -Math.sin(rad) * v,
+             w, owner: t, trail: [] }];
+  state = "flying";
+  sfxFire();
+  log(t.name + " fires " + w.name + " — " + t.angle + "° / " + Math.round(t.power));
+  syncUI();
+}
+
+function stepProjectile() {
+  for (let s = 0; s < CFG.stepsPerFrame; s++) {
+    for (let i = projs.length - 1; i >= 0; i--) {
+      const p = projs[i];
+      if (p.rolling) { stepRoller(p, i); continue; }
+
+      const px = p.x, py = p.y, prevVy = p.vy;
+      p.vy += CFG.gravity * CFG.dt;
+      p.vx += wind * CFG.windScale * CFG.dt;
+      p.x += p.vx * CFG.dt;
+      p.y += p.vy * CFG.dt;
+
+      // a MIRV opens at the top of its arc
+      if (p.w.kind === "mirv" && !p.child && prevVy < 0 && p.vy >= 0) {
+        splitMirv(p, i);
+        continue;
+      }
+
+      const last = p.trail[p.trail.length - 1];
+      if (!last || Math.hypot(p.x - last.x, p.y - last.y) > 3) {
+        p.trail.push({ x: p.x, y: p.y });
+        if (p.trail.length > 260) p.trail.shift();
+      }
+
+      // walk the segment so fast shots cannot tunnel through thin ground
+      const dx = p.x - px, dy = p.y - py;
+      const n = Math.max(1, Math.ceil(Math.hypot(dx, dy)));
+      let done = false;
+      for (let k = 1; k <= n; k++) {
+        const sx = px + dx * k / n, sy = py + dy * k / n;
+        const hitTank = tankAt(sx, sy);
+        if (hitTank) { onImpact(p, i, sx, sy, hitTank); done = true; break; }
+        if (sx >= 0 && sx < W && sy >= groundAt(sx)) { onImpact(p, i, sx, sy, null); done = true; break; }
+      }
+      if (done) continue;
+
+      if (p.x < -60 || p.x > W + 60 || p.y > H + 300) projs.splice(i, 1);
+    }
+  }
+  if (projs.length === 0 && state === "flying") endTurn();
+}
+
+function splitMirv(p, i) {
+  projs.splice(i, 1);
+  const n = p.w.splits;
+  for (let k = 0; k < n; k++) {
+    const f = n > 1 ? (k - (n - 1) / 2) / ((n - 1) / 2) : 0;   // -1 .. +1
+    projs.push({ x: p.x, y: p.y,
+                 vx: p.vx + f * p.w.spread,
+                 vy: p.vy - 0.5 + Math.abs(f) * 0.25,
+                 w: p.w, owner: p.owner, child: true, trail: [] });
+  }
+  sfxSplit();
+  log("MIRV separates — " + n + " warheads.");
+}
+
+/* A roller lands, then follows the ground downhill until it settles. */
+function stepRoller(p, i) {
+  const here = groundAt(p.x);
+  const dl = groundAt(p.x - 3) - here;   // positive = downhill to the left
+  const dr = groundAt(p.x + 3) - here;
+  let dir = 0;
+  if (dr > dl && dr > 0.12) dir = 1;
+  else if (dl > dr && dl > 0.12) dir = -1;
+  if (dir === 0) { detonate(p, i, null); return; }   // settled in a hollow
+
+  const stepX = dir * p.w.rollSpeed;
+  p.x += stepX;
+  p.rolled += Math.abs(stepX);
+  p.y = groundAt(p.x);
+  const t = tankAt(p.x, p.y - 3);
+  if (t) { detonate(p, i, t); return; }
+  if (p.x < 3 || p.x > W - 3 || p.rolled > p.w.rollMax) detonate(p, i, null);
+}
+
+function tankAt(x, y) {
+  for (const t of tanks) {
+    if (!t.alive) continue;
+    if (x > t.x - CFG.tankW / 2 && x < t.x + CFG.tankW / 2 &&
+        y > t.y - CFG.tankH - 4 && y < t.y + 2) return t;
+  }
+  return null;
+}
+
+function onImpact(p, i, x, y, direct) {
+  // a roller that meets bare ground starts rolling instead of going off
+  if (p.w.kind === "roller" && !direct) {
+    p.rolling = true; p.rolled = 0; p.x = x; p.y = groundAt(x);
+    p.vx = p.vy = 0;
+    return;
+  }
+  detonate(p, i, direct, x, y);
+}
+
+function detonate(p, i, direct, x, y) {
+  const cx = x === undefined ? p.x : x;
+  const cy = y === undefined ? p.y : y;
+  projs.splice(i, 1);
+  if (p.w.kind === "dirt") {
+    mound(cx, cy, p.w.radius);
+    explosions.push({ x: cx, y: cy, r: p.w.radius * 0.8, life: 0, max: 18, dirt: true });
+    spawnParticles(cx, cy, p.w.radius * 0.7, true);
+    shake = Math.min(16, shake + p.w.radius * 0.12);
+    sfxThud();
+    log("Dirt ball lands — terrain raised.");
+  } else {
+    explode(cx, cy, p.w.radius, p.w.damage, direct, p.owner);
+    sfxBoom(p.w.radius);
+  }
+}
+
+/* Dirt ball: raise the surface instead of carving it. Tanks ride the new
+   surface, which is what makes it useful for repositioning. */
+function mound(cx, cy, r) {
+  const x0 = Math.max(0, Math.floor(cx - r)), x1 = Math.min(W - 1, Math.ceil(cx + r));
+  const ceiling = H * CFG.groundMin;
+  for (let x = x0; x <= x1; x++) {
+    const dx = x - cx, s = r * r - dx * dx;
+    if (s <= 0) continue;
+    const dy = Math.sqrt(s);
+    terrain[x] = Math.max(ceiling, Math.min(terrain[x], cy - dy));
+  }
+  settleTanks();
+}
+
+function explode(cx, cy, radius, damage, direct, attacker) {
+  explosions.push({ x: cx, y: cy, r: radius, life: 0, max: 22 });
+  spawnParticles(cx, cy, radius, false);
+  shake = Math.min(16, shake + radius * 0.32);
+  carve(cx, cy, radius);
+  const reach = radius + CFG.tankW * 0.4;
+  for (const t of tanks) {
+    if (!t.alive) continue;
+    const d = Math.hypot(t.x - cx, (t.y - CFG.tankH / 2) - cy);
+    if (d < reach || t === direct) {
+      const f = Math.max(0, 1 - d / reach);
+      const dmg = Math.max(1, Math.round(damage * (t === direct ? 1 : 0.30 + 0.70 * f)));
+      t.health -= dmg;
+      // you are not paid for shelling yourself
+      if (attacker && attacker !== t) attacker.cash += dmg * ECON.cashPerDamage;
+      sfxHit();
+      log(t.name + " takes " + dmg + (t === direct ? " (direct hit)" : ""));
+      if (t.health <= 0) { t.health = 0; t.alive = false; log(t.name + " destroyed."); }
+    }
+  }
+  settleTanks(true);
+}
+
+/* ---------- sound ----------
+   Synthesised on the fly so the game stays a single file with no assets.
+   The context is created on first use, which is always inside a click or
+   keypress, so autoplay policy is satisfied. */
+let actx = null, muted = false, noiseBuf = null;
+
+function audio() {
+  if (muted) return null;
+  if (!actx) {
+    const AC = window.AudioContext || window.webkitAudioContext;
+    if (!AC) return null;
+    try { actx = new AC(); } catch (e) { return null; }
+  }
+  if (actx.state === "suspended") actx.resume();
+  return actx;
+}
+
+function noise(a) {
+  if (!noiseBuf) {
+    noiseBuf = a.createBuffer(1, Math.floor(a.sampleRate * 1.2), a.sampleRate);
+    const d = noiseBuf.getChannelData(0);
+    for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+  }
+  return noiseBuf;
+}
+
+function tone(type, f0, f1, dur, vol) {
+  const a = audio(); if (!a) return;
+  const t = a.currentTime;
+  const o = a.createOscillator(), g = a.createGain();
+  o.type = type;
+  o.frequency.setValueAtTime(f0, t);
+  o.frequency.exponentialRampToValueAtTime(Math.max(1, f1), t + dur);
+  g.gain.setValueAtTime(vol, t);
+  g.gain.exponentialRampToValueAtTime(0.0008, t + dur);
+  o.connect(g).connect(a.destination);
+  o.start(t); o.stop(t + dur + 0.02);
+}
+
+function sfxFire() { tone("sawtooth", 430, 95, 0.18, 0.16); }
+function sfxSplit() { tone("square", 700, 1500, 0.10, 0.07); }
+function sfxThud() { tone("sine", 150, 45, 0.26, 0.30); }
+function sfxHit() { tone("square", 1100, 380, 0.07, 0.09); }
+
+function sfxBoom(radius) {
+  const a = audio(); if (!a) return;
+  const t = a.currentTime;
+  const r = radius || 26;
+  const dur = 0.32 + Math.min(0.55, r / 110);
+  const s = a.createBufferSource(); s.buffer = noise(a);
+  const f = a.createBiquadFilter();
+  f.type = "lowpass";
+  f.frequency.setValueAtTime(1400, t);
+  f.frequency.exponentialRampToValueAtTime(70, t + dur);
+  const g = a.createGain();
+  g.gain.setValueAtTime(Math.min(0.5, 0.22 + r / 260), t);
+  g.gain.exponentialRampToValueAtTime(0.0008, t + dur);
+  s.connect(f).connect(g).connect(a.destination);
+  s.start(t); s.stop(t + dur);
+  tone("sine", 90, 30, dur * 0.8, 0.22);   // body of the blast
+}
+
+/* ---------- particles ---------- */
+let particles = [];
+
+function spawnParticles(cx, cy, r, dirt) {
+  const n = Math.min(70, Math.round(r * 1.2));
+  for (let i = 0; i < n; i++) {
+    const a = Math.random() * Math.PI * 2;
+    const sp = (0.4 + Math.random() * 2.4) * (r / 26);
+    particles.push({ x: cx, y: cy,
+                     vx: Math.cos(a) * sp,
+                     vy: Math.sin(a) * sp - 1.1,
+                     life: 0, max: 26 + Math.random() * 30, dirt });
+  }
+  if (particles.length > 900) particles.splice(0, particles.length - 900);
+}
+
+function stepParticles() {
+  for (let i = particles.length - 1; i >= 0; i--) {
+    const p = particles[i];
+    p.vy += 0.17;
+    p.vx *= 0.99;
+    p.x += p.vx; p.y += p.vy;
+    if (++p.life > p.max) particles.splice(i, 1);
+  }
+}
+
+function drawParticles() {
+  for (const p of particles) {
+    const f = p.life / p.max;
+    ctx.globalAlpha = Math.max(0, 1 - f);
+    ctx.fillStyle = p.dirt
+      ? (f < 0.5 ? "#8a7550" : "#5c4f36")
+      : (f < 0.28 ? "#fff3c4" : f < 0.6 ? "#ffb347" : "#c4442a");
+    const s = p.dirt ? 2.2 : 2.6 * (1 - f * 0.5);
+    ctx.fillRect(p.x - s / 2, p.y - s / 2, s, s);
+  }
+  ctx.globalAlpha = 1;
+}
+
+/* ---------- AI ---------- */
+
+/* Dry-run of the exact same integrator the real projectile uses, so the
+   solver cannot be right about a world the game does not simulate. */
+function simulateLanding(t, angle, power, w) {
+  const rad = angle * Math.PI / 180, v = power * CFG.powerScale;
+  const p = pivot(t);
+  let x = p.x + Math.cos(rad) * CFG.barrelLen;
+  let y = p.y - Math.sin(rad) * CFG.barrelLen;
+  let vx = Math.cos(rad) * v, vy = -Math.sin(rad) * v;
+  for (let i = 0; i < 24000; i++) {
+    const px = x, py = y;
+    vy += CFG.gravity * CFG.dt;
+    vx += w * CFG.windScale * CFG.dt;
+    x += vx * CFG.dt; y += vy * CFG.dt;
+    const dx = x - px, dy = y - py;
+    const n = Math.max(1, Math.ceil(Math.hypot(dx, dy)));
+    for (let k = 1; k <= n; k++) {
+      const sx = px + dx * k / n, sy = py + dy * k / n;
+      if (sx >= 0 && sx < W && sy >= groundAt(sx)) return { x: sx, y: sy };
+    }
+    if (x < -60 || x > W + 60 || y > H + 300) return null;
+  }
+  return null;
+}
+
+/* For a fixed angle, landing position is monotonic in power, so bisect. */
+function solvePower(t, angle, goalX, w) {
+  const dir = goalX > t.x ? 1 : -1;
+  let lo = CFG.minPower, hi = 100;
+  for (let i = 0; i < 26; i++) {
+    const mid = (lo + hi) / 2;
+    const r = simulateLanding(t, angle, mid, w);
+    const lx = r ? r.x : (dir > 0 ? W + 9999 : -9999);
+    if ((lx - goalX) * dir < 0) lo = mid; else hi = mid;
+  }
+  return (lo + hi) / 2;
+}
+
+function aiChooseShot(t, target) {
+  const d = DIFFICULTY[difficulty];
+  const goalX = target.x + (Math.random() * 2 - 1) * d.aimError;
+  const dir = target.x > t.x ? 1 : -1;
+  let best = null;
+  for (let a = 25; a <= 80; a += 5) {
+    const angle = dir > 0 ? a : 180 - a;
+    const power = solvePower(t, angle, goalX, wind);
+    const r = simulateLanding(t, angle, power, wind);
+    if (!r) continue;                       // this arc cannot reach at all
+    const err = Math.abs(r.x - goalX);
+    if (!best || err < best.err) best = { angle, power, err };
+  }
+  if (!best) {                              // blocked in every arc: lob it hard
+    best = { angle: dir > 0 ? 60 : 120, power: 80, err: 999 };
+  }
+  const power = Math.max(CFG.minPower, Math.min(100,
+    best.power + (Math.random() * 2 - 1) * d.powerJitter));
+  return { angle: Math.round(best.angle), power: Math.round(power * 10) / 10 };
+}
+
+/* Spend the scarce ordnance only when the CPU is accurate enough to
+   make it worth the shot. */
+function aiChooseWeapon(t) {
+  const owned = WEAPONS.filter(w => t.ammo[w.id] > 0 && w.kind !== "dirt" && w.id !== "shell");
+  if (!owned.length) return "shell";
+  const willing = DIFFICULTY[difficulty].aimError < 60 ? 0.6 : 0.25;
+  if (Math.random() > willing) return "shell";
+  return owned.sort((a, b) => b.damage * b.radius - a.damage * a.radius)[0].id;
+}
+
+function aiTurn() {
+  const t = tanks[turn], target = tanks[1 - turn];
+  t.weapon = aiChooseWeapon(t);
+  const shot = aiChooseShot(t, target);
+  t.angle = shot.angle; t.power = shot.power;
+  state = "aim";          // fire() only acts from the aim state
+  syncUI();
+  fire();
+}
+
+/* ---------- turn flow ---------- */
+function endTurn() {
+  state = "settle";
+  stateTimer = CFG.settleFrames;
+}
+
+function nextTurn() {
+  if (tanks.some(t => !t.alive)) { roundOver(); return; }
+  turn = 1 - turn;
+  rollWind();
+  if (tanks[turn].isAI) { state = "aithink"; stateTimer = CFG.aiThinkFrames; }
+  else state = "aim";
+  syncUI();
+}
+
+function roundOver() {
+  winner = tanks.find(t => t.alive) || null;
+  if (winner) {
+    winner.roundWins++;
+    winner.cash += ECON.roundWinBonus;
+    log(winner.name + " wins round " + roundNo + " (+$" + ECON.roundWinBonus + ").");
+  } else {
+    log("Mutual destruction — round " + roundNo + " drawn.");
+  }
+  const champion = tanks.find(t => t.roundWins >= roundsToWin);
+  if (champion) {
+    matchWinner = champion;
+    state = "over";
+    log(champion.name + " takes the match " + tanks[0].roundWins + "–" + tanks[1].roundWins + ".");
+  } else {
+    aiShop();
+    state = "shop";
+    openShop();
+  }
+  syncUI();
+}
+
+/* Terrain and health reset each round; cash, ammo and upgrades do not. */
+function newRound() {
+  roundNo++;
+  genTerrain();
+  tanks[0].x = 60 + Math.random() * 190;
+  tanks[1].x = W - 60 - Math.random() * 190;
+  for (const t of tanks) { t.health = t.maxHealth; t.alive = true; t.weapon = "shell"; }
+  tanks[0].angle = 45; tanks[1].angle = 135;
+  settleTanks(false);
+  turn = 0; state = "aim"; winner = null; projs = []; explosions = []; particles = []; shake = 0;
+  rollWind();
+  closeShop();
+  log("Round " + roundNo + " — begin.");
+  syncUI();
+}
+
+function newMatch() {
+  genTerrain();
+  tanks = [
+    makeTank(60 + Math.random() * 190, "#7fd0ff", "Player"),
+    makeTank(W - 60 - Math.random() * 190, "#ff8a5c", "CPU")
+  ];
+  tanks[0].angle = 45; tanks[1].angle = 135;
+  tanks[1].isAI = true;
+  settleTanks(false);
+  roundNo = 1; matchWinner = null;
+  turn = 0; state = "aim"; winner = null; projs = []; explosions = []; particles = []; shake = 0;
+  rollWind();
+  closeShop();
+  document.getElementById("log").innerHTML = "";
+  log("New match — best of " + (roundsToWin * 2 - 1) + ". Round 1 begins.");
+  syncUI();
+}
+
+/* The CPU spends its winnings too, or it falls behind by round three. */
+function aiShop() {
+  const t = tanks[1];
+  for (let guard = 0; guard < 40; guard++) {
+    const pool = [];
+    if (t.parachutes < 2) pool.push({ up: UPGRADES[1] });
+    if (t.maxHealth < 175) pool.push({ up: UPGRADES[0] });
+    for (const w of WEAPONS) if (w.cost > 0 && t.ammo[w.id] < 4) pool.push({ w });
+    const afford = pool.filter(p => (p.up || p.w).cost <= t.cash);
+    if (!afford.length) break;
+    const pick = afford[Math.floor(Math.random() * afford.length)];
+    const item = pick.up || pick.w;
+    t.cash -= item.cost;
+    if (pick.up) pick.up.apply(t); else t.ammo[pick.w.id] += pick.w.buy;
+  }
+}
+
+/* ---------- rendering ---------- */
+function draw() {
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  // screen shake: nudge the whole scene, and overdraw the sky so the
+  // offset never exposes bare canvas at the edges
+  const ox = shake > 0.2 ? (Math.random() - 0.5) * shake : 0;
+  const oy = shake > 0.2 ? (Math.random() - 0.5) * shake : 0;
+  ctx.translate(ox, oy);
+
+  const sky = ctx.createLinearGradient(0, 0, 0, H);
+  sky.addColorStop(0, "#0a0d1a");
+  sky.addColorStop(0.62, "#1b2036");
+  sky.addColorStop(1, "#2a2438");
+  ctx.fillStyle = sky;
+  ctx.fillRect(-24, -24, W + 48, H + 48);
+
+  const gnd = ctx.createLinearGradient(0, H * 0.25, 0, H);
+  gnd.addColorStop(0, "#5c6b46");
+  gnd.addColorStop(0.25, "#3f4a30");
+  gnd.addColorStop(1, "#211f1a");
+  ctx.beginPath();
+  ctx.moveTo(-24, terrain[0]);
+  for (let x = 0; x < W; x++) ctx.lineTo(x, terrain[x]);
+  ctx.lineTo(W + 24, terrain[W - 1]);
+  ctx.lineTo(W + 24, H + 24); ctx.lineTo(-24, H + 24); ctx.closePath();
+  ctx.fillStyle = gnd; ctx.fill();
+  ctx.strokeStyle = "#8ba05f"; ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.moveTo(0, terrain[0]);
+  for (let x = 1; x < W; x++) ctx.lineTo(x, terrain[x]);
+  ctx.stroke();
+
+  for (const t of tanks) drawTank(t);
+  drawProjectile();
+  drawExplosions();
+  drawParticles();
+  drawWind();
+  drawHUD();
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+}
+
+function drawWind() {
+  const cx = W / 2, cy = 44, span = 110;
+  ctx.strokeStyle = "#2a2f45"; ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.moveTo(cx - span, cy); ctx.lineTo(cx + span, cy); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(cx, cy - 5); ctx.lineTo(cx, cy + 5); ctx.stroke();
+
+  const f = wind / CFG.maxWind;
+  const tip = cx + f * span;
+  ctx.strokeStyle = ctx.fillStyle = Math.abs(f) > 0.6 ? "#ff6b6b" : Math.abs(f) > 0.25 ? "#ffd166" : "#5ee089";
+  ctx.lineWidth = 3; ctx.lineCap = "round";
+  ctx.beginPath(); ctx.moveTo(cx, cy); ctx.lineTo(tip, cy); ctx.stroke();
+  if (wind !== 0) {
+    const d = Math.sign(wind);
+    ctx.beginPath();
+    ctx.moveTo(tip, cy);
+    ctx.lineTo(tip - d * 8, cy - 5);
+    ctx.lineTo(tip - d * 8, cy + 5);
+    ctx.closePath(); ctx.fill();
+  }
+  ctx.font = "11px Consolas, monospace"; ctx.textAlign = "center";
+  ctx.fillStyle = "#9fb0d0";
+  ctx.fillText("WIND " + Math.abs(wind).toFixed(1) + (wind === 0 ? " calm" : wind > 0 ? " →" : " ←"), cx, cy + 20);
+  ctx.textAlign = "left";
+}
+
+function drawTank(t) {
+  if (!t.alive) {
+    ctx.fillStyle = "#3a3a3a";
+    ctx.fillRect(t.x - CFG.tankW / 2, t.y - 5, CFG.tankW, 5);
+    return;
+  }
+  const p = pivot(t), m = muzzle(t);
+  ctx.strokeStyle = t.color; ctx.lineWidth = 4; ctx.lineCap = "round";
+  ctx.beginPath(); ctx.moveTo(p.x, p.y); ctx.lineTo(m.x, m.y); ctx.stroke();
+
+  ctx.fillStyle = t.color;
+  ctx.beginPath();
+  ctx.moveTo(t.x - CFG.tankW / 2, t.y);
+  ctx.lineTo(t.x + CFG.tankW / 2, t.y);
+  ctx.lineTo(t.x + CFG.tankW / 2 - 4, t.y - CFG.tankH * 0.55);
+  ctx.lineTo(t.x - CFG.tankW / 2 + 4, t.y - CFG.tankH * 0.55);
+  ctx.closePath(); ctx.fill();
+  ctx.beginPath();
+  ctx.ellipse(t.x, t.y - CFG.tankH * 0.55, CFG.tankW * 0.30, CFG.tankH * 0.52, 0, Math.PI, 0);
+  ctx.fill();
+
+  const bw = 30, hp = t.health / t.maxHealth;
+  ctx.fillStyle = "rgba(0,0,0,0.6)"; ctx.fillRect(t.x - bw / 2, t.y - CFG.tankH - 30, bw, 4);
+  ctx.fillStyle = hp > 0.5 ? "#5ee089" : hp > 0.25 ? "#ffd166" : "#ff6b6b";
+  ctx.fillRect(t.x - bw / 2, t.y - CFG.tankH - 30, bw * hp, 4);
+}
+
+function drawProjectile() {
+  for (const p of projs) {
+    ctx.strokeStyle = p.w.kind === "dirt" ? "rgba(150,130,90,0.45)" : "rgba(255,209,102,0.45)";
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    for (let i = 0; i < p.trail.length; i++) {
+      const q = p.trail[i];
+      if (i === 0) ctx.moveTo(q.x, q.y); else ctx.lineTo(q.x, q.y);
+    }
+    ctx.stroke();
+    ctx.fillStyle = p.w.kind === "dirt" ? "#b8a173" : p.w.kind === "nuke" ? "#ff9d3c" : "#ffe9a8";
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, p.w.id === "nuke" ? 4.5 : p.child ? 2.2 : 3, 0, Math.PI * 2);
+    ctx.fill();
+  }
+}
+
+function drawExplosions() {
+  for (const e of explosions) {
+    const f = e.life / e.max;
+    const r = e.r * (0.35 + 0.85 * f);
+    ctx.globalAlpha = 1 - f;
+    const g = ctx.createRadialGradient(e.x, e.y, 0, e.x, e.y, r);
+    g.addColorStop(0, "#fff3c4");
+    g.addColorStop(0.45, "#ff9d3c");
+    g.addColorStop(1, "rgba(120,30,0,0)");
+    ctx.fillStyle = g;
+    ctx.beginPath(); ctx.arc(e.x, e.y, r, 0, Math.PI * 2); ctx.fill();
+    ctx.globalAlpha = 1;
+  }
+}
+
+function drawHUD() {
+  ctx.font = "13px Consolas, monospace";
+  ctx.textAlign = "center";
+  if (state === "over") {
+    ctx.fillStyle = "rgba(0,0,0,0.72)"; ctx.fillRect(0, H / 2 - 40, W, 80);
+    ctx.fillStyle = "#ffd166"; ctx.font = "22px Consolas, monospace";
+    ctx.fillText(matchWinner ? matchWinner.name.toUpperCase() + " WINS THE MATCH"
+                             : "MUTUAL DESTRUCTION", W / 2, H / 2 - 4);
+    ctx.font = "12px Consolas, monospace"; ctx.fillStyle = "#9fb0d0";
+    ctx.fillText(tanks[0].roundWins + "–" + tanks[1].roundWins + " · press New match",
+                 W / 2, H / 2 + 18);
+  } else if (state === "shop") {
+    // the shop overlay covers the canvas; nothing to draw here
+  } else {
+    ctx.fillStyle = tanks[turn].color;
+    ctx.fillText(state === "aithink" ? "CPU is aiming…" : tanks[turn].name + " to fire", W / 2, 22);
+  }
+  ctx.textAlign = "left";
+}
+
+/* ---------- loop ---------- */
+function frame() {
+  if (state === "flying") stepProjectile();
+  else if (state === "settle") { if (--stateTimer <= 0) nextTurn(); }
+  else if (state === "aithink") { if (--stateTimer <= 0) aiTurn(); }
+  for (let i = explosions.length - 1; i >= 0; i--) {
+    if (++explosions[i].life > explosions[i].max) explosions.splice(i, 1);
+  }
+  stepParticles();
+  shake = shake > 0.2 ? shake * CFG.shakeDecay : 0;
+  draw();
+  requestAnimationFrame(frame);
+}
+
+/* ---------- UI ---------- */
+const $ = id => document.getElementById(id);
+
+function log(msg) {
+  const d = document.createElement("div");
+  d.textContent = "> " + msg;
+  $("log").appendChild(d);
+  $("log").scrollTop = 1e6;
+}
+
+function syncUI() {
+  const t = tanks[turn];
+  $("turn-h").textContent = state === "over" ? "Round over"
+    : state === "aithink" ? "CPU is aiming" : t.name + " to fire";
+  $("angle").value = t.angle; $("angle-o").textContent = t.angle + "°";
+  $("power").value = t.power; $("power-o").textContent = t.power;
+  const on = state === "aim";
+  $("angle").disabled = !on; $("power").disabled = !on; $("fire").disabled = !on;
+  $("weapon").disabled = !on;
+  renderWeaponSelect(t);
+  $("wind-o").textContent = wind === 0 ? "calm"
+    : Math.abs(wind).toFixed(1) + (wind > 0 ? " right" : " left");
+  $("round-o").textContent = roundNo + " · " + tanks[0].roundWins + "–" + tanks[1].roundWins;
+  $("cash-o").textContent = "$" + tanks[0].cash;
+  $("chute-o").textContent = tanks[0].parachutes;
+  for (let i = 0; i < 2; i++) {
+    const tk = tanks[i], hp = tk.health / tk.maxHealth;
+    $("p" + (i + 1) + "-name").textContent = tk.name;
+    $("p" + (i + 1) + "-hp").textContent = tk.health;
+    const bar = $("p" + (i + 1) + "-bar");
+    bar.style.width = (hp * 100) + "%";
+    bar.style.background = hp > 0.5 ? "#5ee089" : hp > 0.25 ? "#ffd166" : "#ff6b6b";
+  }
+}
+
+/* ---------- shop ---------- */
+function openShop() {
+  $("shop").classList.add("open");
+  $("shop-title").textContent = "Round " + roundNo + " over — " +
+    tanks[0].roundWins + "–" + tanks[1].roundWins;
+  $("shop-cpu").textContent = "CPU has spent down to $" + tanks[1].cash + ".";
+  renderShop();
+}
+
+function closeShop() { $("shop").classList.remove("open"); }
+
+function renderShop() {
+  const t = tanks[0];
+  const host = $("shop-items");
+  host.innerHTML = "";
+  const row = (name, desc, owned, cost, onBuy) => {
+    const d = document.createElement("div");
+    d.className = "shoprow";
+    d.innerHTML = '<span class="nm"></span><span class="ds"></span>' +
+                  '<span class="ow"></span><span class="pr"></span>';
+    d.children[0].textContent = name;
+    d.children[1].textContent = desc;
+    d.children[2].textContent = owned;
+    d.children[3].textContent = "$" + cost;
+    const b = document.createElement("button");
+    b.textContent = "Buy";
+    b.disabled = t.cash < cost;
+    b.addEventListener("click", () => { onBuy(); renderShop(); syncUI(); });
+    d.appendChild(b);
+    host.appendChild(d);
+  };
+
+  for (const w of WEAPONS) {
+    if (w.cost <= 0) continue;
+    const desc = w.kind === "dirt"
+      ? "no damage · raises terrain"
+      : "dmg " + w.damage + " · blast r" + w.radius +
+        (w.kind === "mirv" ? " · splits x" + w.splits : w.kind === "roller" ? " · rolls downhill" : "");
+    row(w.name, desc + "  (+" + w.buy + ")", "x" + t.ammo[w.id], w.cost, () => {
+      t.cash -= w.cost; t.ammo[w.id] += w.buy;
+    });
+  }
+  for (const u of UPGRADES) {
+    const owned = u.id === "armor" ? t.maxHealth + " hp" : "x" + t.parachutes;
+    row(u.name, u.desc, owned, u.cost, () => { t.cash -= u.cost; u.apply(t); });
+  }
+  $("cash").textContent = "$" + t.cash;
+}
+
+$("shop-done").addEventListener("click", () => { if (state === "shop") newRound(); });
+
+function renderWeaponSelect(t) {
+  const sel = $("weapon");
+  const owned = WEAPONS.filter(w => t.ammo[w.id] > 0);
+  const sig = owned.map(w => w.id + ":" + t.ammo[w.id]).join(",") + "|" + t.weapon;
+  if (sel.dataset.sig !== sig) {
+    sel.dataset.sig = sig;
+    sel.innerHTML = "";
+    for (const w of owned) {
+      const o = document.createElement("option");
+      o.value = w.id;
+      o.textContent = w.name + (w.ammo === Infinity || t.ammo[w.id] === Infinity ? "  (∞)" : "  x" + t.ammo[w.id]);
+      sel.appendChild(o);
+    }
+  }
+  if (!(t.ammo[t.weapon] > 0)) t.weapon = "shell";
+  sel.value = t.weapon;
+  const w = weaponById(t.weapon);
+  $("weapon-info").textContent = w.kind === "dirt"
+    ? "no damage · raises terrain r" + w.radius
+    : "dmg " + w.damage + " · blast r" + w.radius +
+      (w.kind === "mirv" ? " · splits x" + w.splits : w.kind === "roller" ? " · rolls downhill" : "");
+}
+
+$("weapon").addEventListener("change", e => {
+  tanks[turn].weapon = e.target.value;
+  renderWeaponSelect(tanks[turn]);
+});
+
+$("angle").addEventListener("input", e => {
+  tanks[turn].angle = +e.target.value; $("angle-o").textContent = e.target.value + "°";
+});
+$("power").addEventListener("input", e => {
+  tanks[turn].power = +e.target.value; $("power-o").textContent = e.target.value;
+});
+$("fire").addEventListener("click", fire);
+$("newgame").addEventListener("click", newMatch);
+$("difficulty").addEventListener("change", e => {
+  difficulty = e.target.value;
+  log("CPU skill set to " + DIFFICULTY[difficulty].label + ".");
+});
+// changing the match length restarts, so the score never means two things
+$("rounds").addEventListener("change", e => {
+  roundsToWin = +e.target.value;
+  newMatch();
+});
+$("mute").addEventListener("click", () => {
+  muted = !muted;
+  $("mute").textContent = "Sound: " + (muted ? "off" : "on");
+});
+
+addEventListener("keydown", e => {
+  if (state !== "aim") return;
+  const t = tanks[turn], step = e.shiftKey ? 5 : 1;
+  if (e.key === "ArrowLeft") t.angle = Math.min(180, t.angle + step);
+  else if (e.key === "ArrowRight") t.angle = Math.max(0, t.angle - step);
+  else if (e.key === "ArrowUp") t.power = Math.min(100, t.power + step);
+  else if (e.key === "ArrowDown") t.power = Math.max(5, t.power - step);
+  else if (e.key === " ") fire();
+  else if (e.key === "m" || e.key === "M") $("mute").click();
+  else return;
+  e.preventDefault();
+  syncUI();
+});
+
+newMatch();
+frame();
+</script>
