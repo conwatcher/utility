@@ -79,6 +79,31 @@ pick a warhead, and try to bury the other tank before it buries you.
 - Dark theme, mouse or keyboard (arrows aim, space fires, **M** mutes)
 - Installable as a PWA — **Share → Add to Home Screen**
 
+### Snafu
+
+A remake of Mattel's *Snafu* (Intellivision, 1981): the growing-trail arcade game
+with two formats, Trap and Bite.
+
+**URL:** https://conwatcher.github.io/utility/snafu/
+**Source:** [`snafu/index.html`](snafu/index.html)
+
+- **Trap**: up to four trails that never stop growing. Crash into a wall, an
+  obstacle or any trail and you're out, and every survivor scores a point. No 180°
+  turns. Computer players fill any trail without a human
+- **Bite**: two serpents of 10 segments that grow toward 20 when left alone. Run
+  into the other serpent's tail to bite off a segment. Walls, obstacles and bodies
+  cost you one. First to zero loses the round
+- Variations as toggles: 4-way or 8-way movement, no / some / lots of obstacles
+  (placed symmetrically so nobody gets a better start), crashed trails that stay as
+  walls or vanish
+- Speed 1–9, three computer skill levels (Easy turns only when about to hit
+  something; Normal and Hard measure open space; Hard also hunts), 1–99 rounds
+- 0, 1 or 2 humans. 0 is a watch mode. Keyboard (WASD + QEZC, arrows / numpad),
+  gamepads, and an on-screen touch disc modelled on the Intellivision controller
+- An original looping chiptune kicks in when the field is down to two, plus
+  synthesised crash, bite and countdown sounds. No asset files. **M** mutes
+- Installable as a PWA: **Share → Add to Home Screen**
+
 ## Adding a tool
 
 Create a new folder at the repo root with an `index.html` inside, keep it

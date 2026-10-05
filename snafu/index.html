@@ -1,0 +1,952 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<title>Snafu</title>
+<link rel="manifest" href="./manifest.json">
+<meta name="theme-color" content="#05060a">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="color-scheme" content="dark">
+<style>
+  :root {
+    --bg: #05060a;
+    --panel: #10131c;
+    --panel-2: #1a1f2c;
+    --line: #2a3150;
+    --text: #e6ebf5;
+    --muted: #8b95ad;
+    --accent: #ffd23f;
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body {
+    margin: 0; padding: 0; background: var(--bg); color: var(--text);
+    font-family: Consolas, "Courier New", monospace;
+    overscroll-behavior: none;
+  }
+  body { min-height: 100vh; min-height: 100dvh; }
+  button {
+    font-family: inherit; font-size: 14px; color: var(--text); background: var(--panel-2);
+    border: 1px solid var(--line); border-radius: 4px; padding: 8px 12px; cursor: pointer;
+    touch-action: manipulation;
+  }
+  button:hover { border-color: var(--accent); }
+  button.on { background: #3a2f0c; border-color: var(--accent); color: var(--accent); }
+
+  /* ---------- menu ---------- */
+  #menu { max-width: 720px; margin: 0 auto; padding: max(16px, env(safe-area-inset-top)) 16px 32px; }
+  #menu h1 {
+    font-size: 54px; letter-spacing: 10px; margin: 6px 0 0; text-align: center;
+    color: var(--accent); text-shadow: 4px 4px 0 #ff5d73, 8px 8px 0 #4fc3ff;
+  }
+  #menu .tag { text-align: center; color: var(--muted); font-size: 13px; margin: 14px 0 18px; }
+  .opt { display: flex; align-items: center; gap: 12px; padding: 8px 0; border-bottom: 1px solid #151a26; flex-wrap: wrap; }
+  .opt .lbl { width: 130px; color: #9fb0d0; font-size: 13px; text-transform: uppercase; letter-spacing: 1px; }
+  .opt .seg { display: flex; flex-wrap: wrap; gap: 6px; flex: 1; }
+  .opt .seg button { min-width: 44px; min-height: 40px; }
+  .opt .hint { width: 100%; font-size: 11px; color: var(--muted); padding-left: 142px; margin-top: -2px; }
+  .stepper { display: flex; align-items: center; gap: 6px; }
+  .stepper input {
+    width: 64px; height: 40px; text-align: center; font: inherit; font-size: 16px; color: var(--text);
+    background: var(--panel); border: 1px solid var(--line); border-radius: 4px;
+  }
+  #start {
+    display: block; width: 100%; margin: 20px 0 14px; padding: 16px; font-size: 20px; font-weight: bold;
+    letter-spacing: 6px; color: var(--accent); border-color: #5a4a20; background: #1d1808;
+  }
+  #start:hover { background: #3a2f0c; }
+  .help { background: var(--panel); border: 1px solid var(--line); padding: 10px 14px; font-size: 12px; line-height: 1.6; color: var(--muted); }
+  .help b { color: var(--text); font-weight: normal; }
+  kbd { background: #222738; border: 1px solid #3a4062; border-radius: 3px; padding: 0 5px; color: var(--text); }
+  .back { display: inline-block; color: var(--muted); font-size: 12px; text-decoration: none; margin-top: 12px; }
+
+  /* ---------- game ---------- */
+  #game { display: none; flex-direction: column; align-items: center; height: 100vh; height: 100dvh;
+    padding: max(6px, env(safe-area-inset-top)) 8px max(6px, env(safe-area-inset-bottom)); }
+  #hud { display: flex; align-items: center; gap: 8px; width: 100%; max-width: 1400px; min-height: 40px; }
+  #scores { display: flex; gap: 8px; flex: 1; flex-wrap: wrap; }
+  .chip { display: flex; align-items: center; gap: 6px; padding: 4px 10px; background: var(--panel);
+    border: 1px solid var(--line); border-radius: 4px; font-size: 14px; }
+  .chip .sw { width: 12px; height: 12px; }
+  .chip.dead { opacity: .35; }
+  .chip .pts { font-weight: bold; min-width: 20px; text-align: right; }
+  #roundlbl { color: var(--muted); font-size: 13px; white-space: nowrap; }
+  #hud button { padding: 6px 10px; min-height: 36px; }
+  #play { flex: 1; display: flex; align-items: center; justify-content: center; gap: 14px; width: 100%; min-height: 0; }
+  #stage { position: relative; line-height: 0; }
+  canvas { display: block; touch-action: none; image-rendering: pixelated; }
+  #overlay { position: absolute; inset: 0; display: none; align-items: center; justify-content: center;
+    background: rgba(5,6,10,.78); line-height: 1.5; text-align: center; }
+  #overlay.show { display: flex; }
+  #overlay .box { background: var(--panel); border: 2px solid var(--line); padding: 18px 26px; min-width: 260px; max-width: 90%; }
+  #overlay h2 { margin: 0 0 8px; letter-spacing: 3px; color: var(--accent); }
+  #overlay .rows { margin: 8px 0 14px; font-size: 15px; }
+  #overlay .rows div { display: flex; justify-content: space-between; gap: 24px; }
+  #overlay .btns { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; }
+  #overlay .small { color: var(--muted); font-size: 12px; }
+
+  /* the "disc": an 8/16-way touch controller in the spirit of the Intellivision pad */
+  .disc { position: relative; width: 150px; height: 150px; border-radius: 50%; flex: none;
+    background: radial-gradient(circle at 50% 45%, #232a3d, #12151f 70%); border: 3px solid var(--line);
+    touch-action: none; user-select: none; -webkit-user-select: none; display: none; }
+  .disc.show { display: block; }
+  .disc .knob { position: absolute; left: 50%; top: 50%; width: 36px; height: 36px; margin: -18px 0 0 -18px;
+    border-radius: 50%; background: currentColor; opacity: .85; transition: transform .05s; pointer-events: none; }
+  .disc .tick { position: absolute; left: 50%; top: 50%; width: 4px; height: 12px; margin: -6px 0 0 -2px;
+    background: #3a4466; pointer-events: none; }
+  .disc .pl { position: absolute; left: 0; right: 0; bottom: -22px; text-align: center; font-size: 12px; line-height: 1; }
+  @media (orientation: portrait) {
+    #play { flex-direction: column; }
+    #pads { display: flex; gap: 40px; justify-content: center; margin-bottom: 24px; }
+  }
+  @media (orientation: landscape) { #pads { display: contents; } }
+</style>
+</head>
+<body>
+
+<section id="menu">
+  <h1>SNAFU</h1>
+  <div class="tag">Trap your rivals. Bite their tails. Don't hit the wall.</div>
+  <div id="opts"></div>
+  <button id="start">START</button>
+  <div class="help">
+    <b>Player 1</b> &nbsp;<kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd>, diagonals <kbd>Q</kbd><kbd>E</kbd><kbd>Z</kbd><kbd>C</kbd> or two keys together<br>
+    <b>Player 2</b> &nbsp;arrow keys (two together for diagonals), or numpad <kbd>1</kbd>–<kbd>9</kbd><br>
+    With one human, both sets control Player 1. Gamepads work too (pad 1 = P1, pad 2 = P2).<br>
+    <b>Touch</b> &nbsp;drag the on-screen disc. &nbsp;<kbd>Space</kbd> start / continue &nbsp;<kbd>P</kbd>/<kbd>Esc</kbd> pause &nbsp;<kbd>M</kbd> mute<br><br>
+    <b>Trap</b>: trails never stop growing. Crash into a wall, an obstacle or any trail and you're out.
+    Everyone still alive scores a point each time someone crashes. No 180° turns.<br>
+    <b>Bite</b>: two serpents of 10 segments that grow toward 20 if left alone. Run your head into the
+    other serpent's tail to bite off a segment. Hitting walls, obstacles, their body or your own costs you
+    a segment. First to zero loses the round.
+  </div>
+  <a class="back" href="../">&lsaquo; Utility</a>
+</section>
+
+<section id="game">
+  <div id="hud">
+    <div id="scores"></div>
+    <span id="roundlbl"></span>
+    <button id="mutebtn" title="Mute (M)">♪</button>
+    <button id="pausebtn" title="Pause (P)">II</button>
+  </div>
+  <div id="play">
+    <div id="pads-l" style="display:contents"></div>
+    <div id="stage">
+      <canvas id="cv"></canvas>
+      <div id="overlay"><div class="box" id="obox"></div></div>
+    </div>
+    <div id="pads">
+      <div class="disc" id="disc0"><div class="knob"></div><div class="pl">P1</div></div>
+      <div class="disc" id="disc1"><div class="knob"></div><div class="pl">P2</div></div>
+    </div>
+  </div>
+</section>
+
+<script>
+(() => {
+  'use strict';
+
+  // ------------------------------------------------------------------ constants
+  const COLS = 48, ROWS = 30;
+  // Direction index runs clockwise on screen: E, SE, S, SW, W, NW, N, NE.
+  const DX = [1, 1, 0, -1, -1, -1, 0, 1];
+  const DY = [0, 1, 1, 1, 0, -1, -1, -1];
+  const DIR_E = 0, DIR_S = 2, DIR_W = 4, DIR_N = 6;
+  const COLORS = ['#ffd23f', '#4fc3ff', '#ff5d73', '#6be675'];
+  const CNAMES = ['YELLOW', 'BLUE', 'RED', 'GREEN'];
+  const OBST = -1;
+  const BITE_START = 10, BITE_MAX = 20, GROW_EVERY = 60, BUMP_STUN = 3;
+
+  // ------------------------------------------------------------------ settings
+  const DEFAULTS = { mode: 'trap', humans: 1, trails: 4, diag: 0, obst: 1, vanish: 0, speed: 5, ai: 1, rounds: 10 };
+  const S = Object.assign({}, DEFAULTS);
+  try { Object.assign(S, JSON.parse(localStorage.getItem('snafu.settings') || '{}')); } catch (e) {}
+  let muted = false;
+  try { muted = localStorage.getItem('snafu.muted') === '1'; } catch (e) {}
+  const save = () => { try { localStorage.setItem('snafu.settings', JSON.stringify(S)); } catch (e) {} };
+
+  const OPTIONS = [
+    { key: 'mode', label: 'Game', opts: [['trap', 'Trap'], ['bite', 'Bite']] },
+    { key: 'humans', label: 'Humans', opts: [[0, 'None (watch)'], [1, '1'], [2, '2']] },
+    { key: 'trails', label: 'Trails', opts: [[2, '2'], [3, '3'], [4, '4']], show: () => S.mode === 'trap',
+      hint: 'Computer players fill any trail without a human.' },
+    { key: 'diag', label: 'Movement', opts: [[0, '4-way'], [1, '8-way (diagonals)']] },
+    { key: 'obst', label: 'Obstacles', opts: [[0, 'None'], [1, 'Some'], [2, 'Lots']] },
+    { key: 'vanish', label: 'Crashed trail', opts: [[0, 'Stays as a wall'], [1, 'Vanishes']], show: () => S.mode === 'trap' },
+    { key: 'speed', label: 'Speed', opts: [1, 2, 3, 4, 5, 6, 7, 8, 9].map(n => [n, String(n)]) },
+    { key: 'ai', label: 'Computer', opts: [[0, 'Easy'], [1, 'Normal'], [2, 'Hard']] },
+    { key: 'rounds', label: 'Rounds', stepper: true },
+  ];
+
+  function buildMenu() {
+    const host = document.getElementById('opts');
+    host.innerHTML = '';
+    for (const o of OPTIONS) {
+      if (o.show && !o.show()) continue;
+      const row = document.createElement('div');
+      row.className = 'opt';
+      row.innerHTML = `<span class="lbl">${o.label}</span>`;
+      const seg = document.createElement('div');
+      seg.className = 'seg';
+      if (o.stepper) {
+        seg.innerHTML = `<div class="stepper"><button data-d="-1">−</button>
+          <input type="number" min="1" max="99" value="${S.rounds}" inputmode="numeric"><button data-d="1">+</button></div>`;
+        const inp = seg.querySelector('input');
+        const set = v => { S.rounds = Math.max(1, Math.min(99, v | 0 || 1)); inp.value = S.rounds; save(); };
+        seg.querySelectorAll('button').forEach(b => b.onclick = () => set(S.rounds + +b.dataset.d));
+        inp.onchange = () => set(+inp.value);
+      } else {
+        for (const [v, t] of o.opts) {
+          const b = document.createElement('button');
+          b.textContent = t;
+          if (S[o.key] === v) b.className = 'on';
+          b.onclick = () => { S[o.key] = v; save(); buildMenu(); };
+          seg.appendChild(b);
+        }
+      }
+      row.appendChild(seg);
+      if (o.hint) row.insertAdjacentHTML('beforeend', `<div class="hint">${o.hint}</div>`);
+      host.appendChild(row);
+    }
+  }
+
+  // ------------------------------------------------------------------ audio
+  let ac = null, master = null;
+  function ensureAudio() {
+    if (!ac) {
+      const AC = window.AudioContext || window.webkitAudioContext;
+      if (!AC) return;
+      ac = new AC();
+      master = ac.createGain();
+      master.gain.value = muted ? 0 : 0.5;
+      master.connect(ac.destination);
+    }
+    if (ac.state === 'suspended') ac.resume();
+  }
+  function setMuted(m) {
+    muted = m;
+    try { localStorage.setItem('snafu.muted', m ? '1' : '0'); } catch (e) {}
+    if (master) master.gain.value = m ? 0 : 0.5;
+    document.getElementById('mutebtn').style.opacity = m ? .4 : 1;
+  }
+  function tone(freq, dur, type = 'square', vol = 0.08, when = 0, slideTo = 0) {
+    if (!ac) return;
+    const t = ac.currentTime + when;
+    const o = ac.createOscillator(), g = ac.createGain();
+    o.type = type;
+    o.frequency.setValueAtTime(freq, t);
+    if (slideTo) o.frequency.exponentialRampToValueAtTime(slideTo, t + dur);
+    g.gain.setValueAtTime(vol, t);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    o.connect(g); g.connect(master);
+    o.start(t); o.stop(t + dur + 0.02);
+  }
+  function noise(dur, vol = 0.25) {
+    if (!ac) return;
+    const len = Math.floor(ac.sampleRate * dur);
+    const buf = ac.createBuffer(1, len, ac.sampleRate);
+    const d = buf.getChannelData(0);
+    for (let i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * (1 - i / len);
+    const src = ac.createBufferSource(), g = ac.createGain(), f = ac.createBiquadFilter();
+    f.type = 'lowpass'; f.frequency.value = 1400;
+    g.gain.value = vol;
+    src.buffer = buf;
+    src.connect(f); f.connect(g); g.connect(master);
+    src.start();
+  }
+  const sfx = {
+    count: () => tone(440, 0.12, 'square', 0.07),
+    go: () => tone(880, 0.25, 'square', 0.08),
+    crash: () => { noise(0.45, 0.3); tone(220, 0.4, 'sawtooth', 0.06, 0, 40); },
+    bite: () => { tone(1200, 0.06, 'square', 0.08); tone(600, 0.1, 'square', 0.07, 0.05, 300); },
+    bump: () => tone(140, 0.15, 'triangle', 0.12, 0, 70),
+    grow: () => tone(660, 0.05, 'triangle', 0.05),
+    win: () => [523, 659, 784, 1047].forEach((f, i) => tone(f, 0.18, 'square', 0.07, i * 0.12)),
+  };
+
+  // Endgame music: an original looping chiptune that starts once the field is down to two.
+  const midi = n => 440 * Math.pow(2, (n - 69) / 12);
+  const LEAD = [69, 0, 72, 76, 74, 72, 71, 72, 69, 0, 72, 76, 79, 77, 76, 74,
+                72, 0, 74, 76, 77, 76, 74, 72, 71, 0, 68, 71, 76, 0, 0, 0];
+  const BASS = [45, 57, 45, 57, 45, 57, 45, 57, 41, 53, 41, 53, 41, 53, 41, 53,
+                43, 55, 43, 55, 43, 55, 43, 55, 40, 52, 40, 52, 40, 52, 40, 52];
+  const music = { on: false, step: 0, next: 0, timer: null };
+  function startMusic() {
+    if (!ac || music.on) return;
+    music.on = true; music.step = 0; music.next = ac.currentTime + 0.05;
+    music.timer = setInterval(() => {
+      const eighth = 60 / 150 / 2;
+      while (music.next < ac.currentTime + 0.2) {
+        const when = music.next - ac.currentTime;
+        const l = LEAD[music.step], b = BASS[music.step];
+        if (l) tone(midi(l), eighth * 0.9, 'square', 0.045, when);
+        tone(midi(b), eighth * 0.8, 'triangle', 0.09, when);
+        if (music.step % 4 === 2) tone(90, 0.05, 'square', 0.03, when, 50);
+        music.step = (music.step + 1) % LEAD.length;
+        music.next += eighth;
+      }
+    }, 50);
+  }
+  function stopMusic() { music.on = false; clearInterval(music.timer); }
+
+  // ------------------------------------------------------------------ game state
+  const grid = new Int8Array(COLS * ROWS);    // 0 empty, -1 obstacle, 1..4 player id
+  const idx = (x, y) => y * COLS + x;
+  const inb = (x, y) => x >= 0 && y >= 0 && x < COLS && y < ROWS;
+  const occ = (x, y) => !inb(x, y) || grid[idx(x, y)] !== 0;
+
+  let players = [], obstacles = [], effects = [], ghosts = [];
+  let state = 'menu', round = 0, tickN = 0, countdown = 0, roundResult = null;
+  let acc = 0, last = 0;
+
+  // Trap starting slots, spread so nobody is pointed straight at anyone else.
+  const TRAP_SLOTS = [
+    { x: 4, y: 8, d: DIR_E }, { x: COLS - 5, y: ROWS - 9, d: DIR_W },
+    { x: COLS - 9, y: 3, d: DIR_S }, { x: 8, y: ROWS - 4, d: DIR_N },
+  ];
+  const BITE_SLOTS = [{ x: 13, y: 7, d: DIR_E }, { x: COLS - 14, y: ROWS - 8, d: DIR_W }];
+
+  function newMatch() {
+    const n = S.mode === 'bite' ? 2 : S.trails;
+    players = [];
+    for (let i = 0; i < n; i++) {
+      players.push({ id: i + 1, i, color: COLORS[i], name: CNAMES[i], human: i < S.humans, score: 0, queue: [] });
+    }
+    round = 0;
+    newRound();
+  }
+
+  function newRound() {
+    round++;
+    grid.fill(0);
+    effects = []; ghosts = []; tickN = 0; acc = 0; roundResult = null;
+    stopMusic();
+    const reserved = [];
+    for (const p of players) {
+      p.alive = true; p.queue = []; p.stun = 0; p.growTimer = 0; p.pendingGrow = 0; p.flash = 0;
+      if (S.mode === 'trap') {
+        const s = TRAP_SLOTS[p.i];
+        p.x = s.x; p.y = s.y; p.dir = s.d;
+        for (let k = 2; k >= 0; k--) {          // a short starting trail behind the head
+          const tx = s.x - DX[s.d] * k, ty = s.y - DY[s.d] * k;
+          grid[idx(tx, ty)] = p.id;
+        }
+        for (let k = -3; k <= 8; k++) reserved.push([s.x + DX[s.d] * k, s.y + DY[s.d] * k]);
+      } else {
+        const s = BITE_SLOTS[p.i];
+        p.dir = s.d;
+        p.body = [];
+        for (let k = 0; k < BITE_START; k++) p.body.push({ x: s.x - DX[s.d] * k, y: s.y - DY[s.d] * k });
+        for (let k = -BITE_START - 1; k <= 6; k++) reserved.push([s.x + DX[s.d] * k, s.y + DY[s.d] * k]);
+      }
+    }
+    placeObstacles(reserved);
+    if (S.mode === 'bite') rebuildBiteGrid();
+    state = 'countdown';
+    countdown = 3;
+    countdownT = performance.now();
+    sfx.count();
+    hideOverlay();
+    updateHud();
+  }
+
+  function placeObstacles(reserved) {
+    obstacles = [];
+    const pieces = [0, 5, 10][S.obst];
+    const near = (x, y) => reserved.some(([rx, ry]) => Math.abs(rx - x) <= 2 && Math.abs(ry - y) <= 2);
+    let placed = 0, tries = 0;
+    while (placed < pieces && tries++ < 500) {
+      const len = 2 + Math.floor(Math.random() * 5);
+      const horiz = Math.random() < 0.5;
+      const x0 = 3 + Math.floor(Math.random() * (COLS - 6 - (horiz ? len : 0)));
+      const y0 = 3 + Math.floor(Math.random() * (ROWS - 6 - (horiz ? 0 : len)));
+      const cells = [];
+      for (let k = 0; k < len; k++) {
+        const x = x0 + (horiz ? k : 0), y = y0 + (horiz ? 0 : k);
+        cells.push([x, y], [COLS - 1 - x, ROWS - 1 - y]);   // point-symmetric pair, so it's fair
+      }
+      if (cells.some(([x, y]) => near(x, y) || grid[idx(x, y)] !== 0)) continue;
+      for (const [x, y] of cells) { grid[idx(x, y)] = OBST; obstacles.push([x, y]); }
+      placed++;
+    }
+  }
+
+  function rebuildBiteGrid() {
+    grid.fill(0);
+    for (const [x, y] of obstacles) grid[idx(x, y)] = OBST;
+    for (const p of players) for (const c of p.body) grid[idx(c.x, c.y)] = p.id;
+  }
+
+  // A diagonal step can't slip between two blocks that touch corner to corner.
+  function squeezed(x, y, d) {
+    if (d % 2 === 0) return false;
+    return occ(x + DX[d], y) && occ(x, y + DY[d]);
+  }
+
+  // ------------------------------------------------------------------ input
+  function pushDir(pi, d) {
+    const p = players[pi];
+    if (!p || !p.human || d == null) return;
+    if (!S.diag && d % 2) return;
+    const lastQ = p.queue.length ? p.queue[p.queue.length - 1] : p.dir;
+    if (d === lastQ) return;
+    if (p.queue.length < 3) p.queue.push(d);
+  }
+  function takeQueued(p) {
+    while (p.queue.length) {
+      const d = p.queue.shift();
+      if (d === p.dir) continue;
+      if (S.mode === 'trap' && d === (p.dir + 4) % 8) continue;   // no 180° in Trap
+      return d;
+    }
+    return p.dir;
+  }
+  const vecToDir = (x, y) => {
+    if (!x && !y) return null;
+    return ((Math.round(Math.atan2(y, x) / (Math.PI / 4)) % 8) + 8) % 8;
+  };
+
+  const KEYSETS = [
+    { up: ['KeyW'], down: ['KeyS'], left: ['KeyA'], right: ['KeyD'],
+      diag: { KeyQ: 5, KeyE: 7, KeyZ: 3, KeyC: 1 } },
+    { up: ['ArrowUp', 'Numpad8'], down: ['ArrowDown', 'Numpad2'], left: ['ArrowLeft', 'Numpad4'], right: ['ArrowRight', 'Numpad6'],
+      diag: { Numpad7: 5, Numpad9: 7, Numpad1: 3, Numpad3: 1 } },
+  ];
+  const held = new Set();
+  function keyPlayer(ks) { return S.humans === 1 ? 0 : ks; }
+  window.addEventListener('keydown', e => {
+    if (e.code === 'KeyM') { setMuted(!muted); return; }
+    if (state === 'menu') {
+      if (e.code === 'Enter') startGame();
+      return;
+    }
+    if (e.code === 'KeyP' || e.code === 'Escape') { e.preventDefault(); togglePause(); return; }
+    if (e.code === 'Space' || e.code === 'Enter') {
+      e.preventDefault();
+      if (state === 'roundover') nextRound();
+      else if (state === 'matchover') newMatch();
+      else if (state === 'paused') togglePause();
+      return;
+    }
+    for (let k = 0; k < 2; k++) {
+      const ks = KEYSETS[k];
+      const isCard = ks.up.includes(e.code) || ks.down.includes(e.code) || ks.left.includes(e.code) || ks.right.includes(e.code);
+      if (ks.diag[e.code] != null) { e.preventDefault(); pushDir(keyPlayer(k), ks.diag[e.code]); return; }
+      if (!isCard) continue;
+      e.preventDefault();
+      if (e.repeat) return;
+      held.add(e.code);
+      const has = arr => arr.some(c => held.has(c));
+      let x = 0, y = 0;
+      if (S.diag) {
+        x = (has(ks.right) ? 1 : 0) - (has(ks.left) ? 1 : 0);
+        y = (has(ks.down) ? 1 : 0) - (has(ks.up) ? 1 : 0);
+      }
+      if (!S.diag || (!x && !y)) {   // in 4-way mode the newest key wins
+        x = ks.right.includes(e.code) ? 1 : ks.left.includes(e.code) ? -1 : 0;
+        y = ks.down.includes(e.code) ? 1 : ks.up.includes(e.code) ? -1 : 0;
+      }
+      pushDir(keyPlayer(k), vecToDir(x, y));
+      return;
+    }
+  });
+  window.addEventListener('keyup', e => held.delete(e.code));
+  window.addEventListener('blur', () => { held.clear(); if (state === 'play') togglePause(); });
+
+  // Touch disc
+  function setupDisc(el, pi) {
+    for (let k = 0; k < 8; k++) {
+      const t = document.createElement('div');
+      t.className = 'tick';
+      t.style.transform = `rotate(${k * 45 + 90}deg) translateY(-62px)`;
+      el.appendChild(t);
+    }
+    const knob = el.querySelector('.knob');
+    let active = null;
+    const handle = e => {
+      const r = el.getBoundingClientRect();
+      const dx = e.clientX - (r.left + r.width / 2), dy = e.clientY - (r.top + r.height / 2);
+      const rad = r.width / 2;
+      if (Math.hypot(dx, dy) < rad * 0.18) return;
+      let a = Math.atan2(dy, dx);
+      const step = S.diag ? Math.PI / 4 : Math.PI / 2;
+      a = Math.round(a / step) * step;
+      knob.style.transform = `translate(${Math.cos(a) * rad * 0.55}px, ${Math.sin(a) * rad * 0.55}px)`;
+      pushDir(pi, vecToDir(Math.round(Math.cos(a) * 2) / 2, Math.round(Math.sin(a) * 2) / 2));
+    };
+    el.addEventListener('pointerdown', e => {
+      e.preventDefault(); ensureAudio();
+      active = e.pointerId; el.setPointerCapture(e.pointerId); handle(e);
+    });
+    el.addEventListener('pointermove', e => { if (e.pointerId === active) handle(e); });
+    const end = e => { if (e.pointerId === active) { active = null; knob.style.transform = ''; } };
+    el.addEventListener('pointerup', end);
+    el.addEventListener('pointercancel', end);
+  }
+
+  // Gamepads: pad n drives human player n.
+  const padLast = [];
+  function pollPads() {
+    const pads = navigator.getGamepads ? navigator.getGamepads() : [];
+    for (let g = 0; g < Math.min(2, pads.length); g++) {
+      const pad = pads[g];
+      if (!pad) continue;
+      const b = i => pad.buttons[i] && pad.buttons[i].pressed;
+      let x = (b(15) ? 1 : 0) - (b(14) ? 1 : 0), y = (b(13) ? 1 : 0) - (b(12) ? 1 : 0);
+      if (!x && !y && pad.axes.length >= 2) {
+        const ax = pad.axes[0], ay = pad.axes[1];
+        if (Math.hypot(ax, ay) > 0.5) {
+          const step = S.diag ? Math.PI / 4 : Math.PI / 2;
+          const a = Math.round(Math.atan2(ay, ax) / step) * step;
+          x = Math.round(Math.cos(a)); y = Math.round(Math.sin(a));
+        }
+      }
+      const d = vecToDir(x, y);
+      const start = b(9) || b(0);
+      const prev = padLast[g] || {};
+      if (d !== null && d !== prev.d && state !== 'menu') pushDir(S.humans === 1 ? 0 : g, d);
+      if (start && !prev.start) {
+        if (state === 'roundover') nextRound();
+        else if (state === 'matchover') newMatch();
+        else if (b(9) && (state === 'play' || state === 'paused')) togglePause();
+      }
+      padLast[g] = { d, start };
+    }
+  }
+
+  // ------------------------------------------------------------------ AI
+  const seen = new Int32Array(COLS * ROWS);
+  const queueBuf = new Int32Array(COLS * ROWS);
+  let stamp = 0;
+  function flood(sx, sy, limit, passable) {
+    stamp++;
+    let head = 0, tail = 0, count = 0;
+    const n = S.diag ? 8 : 4, stepD = S.diag ? 1 : 2;
+    queueBuf[tail++] = idx(sx, sy); seen[idx(sx, sy)] = stamp;
+    while (head < tail && count < limit) {
+      const c = queueBuf[head++]; count++;
+      const cx = c % COLS, cy = (c / COLS) | 0;
+      for (let k = 0; k < n; k++) {
+        const d = k * stepD, nx = cx + DX[d], ny = cy + DY[d];
+        if (!inb(nx, ny)) continue;
+        const ni = idx(nx, ny);
+        if (seen[ni] === stamp || !passable(nx, ny)) continue;
+        seen[ni] = stamp; queueBuf[tail++] = ni;
+      }
+    }
+    return count;
+  }
+  const allowedDirs = () => S.diag ? [0, 1, 2, 3, 4, 5, 6, 7] : [0, 2, 4, 6];
+  const freeCell = (x, y) => !occ(x, y);
+
+  function aiTrap(p) {
+    const lvl = S.ai;
+    let best = -Infinity, bestD = p.dir;
+    for (const d of allowedDirs()) {
+      if (d === (p.dir + 4) % 8) continue;
+      const nx = p.x + DX[d], ny = p.y + DY[d];
+      if (occ(nx, ny) || squeezed(p.x, p.y, d)) continue;
+      let score;
+      if (lvl === 0) {
+        // "keep moving, turn when about to hit something"
+        score = (d === p.dir ? 40 : 0) + Math.random() * 12;
+        if (occ(nx + DX[d], ny + DY[d])) score -= 30;
+        if (flood(nx, ny, 25, freeCell) < 25) score -= 60;
+      } else {
+        const LIM = 320;
+        const area = flood(nx, ny, LIM, freeCell);
+        score = area * 10;
+        for (const o of players) {
+          if (o === p || !o.alive) continue;
+          if (Math.max(Math.abs(o.x - nx), Math.abs(o.y - ny)) <= 1) score -= lvl === 2 ? 500 : 250;
+        }
+        if (d === p.dir) score += 6;
+        score += Math.random() * (lvl === 1 ? 14 : 4);
+        if (lvl === 2 && area >= LIM) {
+          // Plenty of room: go hunting. Aim a few cells ahead of the nearest rival.
+          let bd = Infinity;
+          for (const o of players) {
+            if (o === p || !o.alive) continue;
+            const tx = o.x + DX[o.dir] * 4, ty = o.y + DY[o.dir] * 4;
+            bd = Math.min(bd, Math.abs(tx - nx) + Math.abs(ty - ny));
+          }
+          if (bd < Infinity) score -= bd * 3;
+        }
+      }
+      if (score > best) { best = score; bestD = d; }
+    }
+    return bestD;
+  }
+
+  function aiBite(p) {
+    const o = players[1 - p.i];
+    const head = p.body[0];
+    const otail = o.body[o.body.length - 1];
+    const myTail = p.body[p.body.length - 1];
+    const passable = (x, y) => {
+      if (x === otail.x && y === otail.y) return true;
+      if (x === myTail.x && y === myTail.y && !p.pendingGrow) return true;
+      return grid[idx(x, y)] === 0;
+    };
+    const legal = d => {
+      const nx = head.x + DX[d], ny = head.y + DY[d];
+      return inb(nx, ny) && passable(nx, ny) && !squeezed(head.x, head.y, d);
+    };
+    // Breadth-first search toward the opponent's tail; remember the first step taken.
+    const mistake = [0.3, 0.08, 0][S.ai];
+    if (Math.random() >= mistake) {
+      stamp++;
+      const first = new Int8Array(COLS * ROWS);
+      let qh = 0, qt = 0;
+      seen[idx(head.x, head.y)] = stamp;
+      for (const d of allowedDirs()) {
+        if (!legal(d)) continue;
+        const ni = idx(head.x + DX[d], head.y + DY[d]);
+        seen[ni] = stamp; first[ni] = d; queueBuf[qt++] = ni;
+      }
+      const goal = idx(otail.x, otail.y);
+      while (qh < qt) {
+        const c = queueBuf[qh++];
+        if (c === goal) return first[c];
+        const cx = c % COLS, cy = (c / COLS) | 0;
+        for (const d of allowedDirs()) {
+          const nx = cx + DX[d], ny = cy + DY[d];
+          if (!inb(nx, ny)) continue;
+          const ni = idx(nx, ny);
+          if (seen[ni] === stamp || !passable(nx, ny)) continue;
+          if (d % 2 && occ(cx + DX[d], cy) && occ(cx, cy + DY[d])) continue;
+          seen[ni] = stamp; first[ni] = first[c]; queueBuf[qt++] = ni;
+        }
+      }
+    }
+    // No route (or a deliberate slip): pick the roomiest safe move.
+    let best = -Infinity, bestD = p.dir;
+    for (const d of allowedDirs()) {
+      if (!legal(d)) continue;
+      const s = flood(head.x + DX[d], head.y + DY[d], 200, freeCell) + (d === p.dir ? 3 : 0) + Math.random() * 5;
+      if (s > best) { best = s; bestD = d; }
+    }
+    return bestD;
+  }
+
+  // ------------------------------------------------------------------ simulation
+  function tickTrap() {
+    const alive = players.filter(p => p.alive);
+    for (const p of alive) p.dir = p.human ? takeQueued(p) : aiTrap(p);
+
+    const crashed = new Set();
+    for (const p of alive) {
+      p.nx = p.x + DX[p.dir]; p.ny = p.y + DY[p.dir];
+      if (occ(p.nx, p.ny) || (S.diag && squeezed(p.x, p.y, p.dir))) crashed.add(p);
+    }
+    // Two heads arriving at one cell, or crossing paths diagonally, take each other out.
+    for (let a = 0; a < alive.length; a++) for (let b = a + 1; b < alive.length; b++) {
+      const P = alive[a], Q = alive[b];
+      if (P.nx === Q.nx && P.ny === Q.ny) { crashed.add(P); crashed.add(Q); }
+      if (P.nx === Q.x && P.ny === Q.y && Q.nx === P.x && Q.ny === P.y) { crashed.add(P); crashed.add(Q); }
+      if (P.dir % 2 && Q.dir % 2 && P.x + P.nx === Q.x + Q.nx && P.y + P.ny === Q.y + Q.ny) { crashed.add(P); crashed.add(Q); }
+    }
+    for (const p of alive) {
+      if (crashed.has(p)) continue;
+      p.x = p.nx; p.y = p.ny;
+      grid[idx(p.x, p.y)] = p.id;
+    }
+    if (crashed.size) {
+      sfx.crash();
+      for (const p of crashed) {
+        p.alive = false;
+        effects.push({ x: p.x, y: p.y, color: p.color, t: performance.now() });
+        if (S.vanish) {
+          const cells = [];
+          for (let i = 0; i < grid.length; i++) if (grid[i] === p.id) { cells.push(i); grid[i] = 0; }
+          ghosts.push({ cells, color: p.color, t: performance.now() });
+        }
+      }
+      const survivors = players.filter(p => p.alive);
+      for (const s of survivors) s.score += crashed.size;
+      updateHud();
+      if (survivors.length <= 1) return endRound(survivors[0] || null);
+    }
+    if (players.filter(p => p.alive).length === 2) startMusic();
+  }
+
+  function bump(p, o) {
+    p.body.pop();
+    p.stun = BUMP_STUN; p.growTimer = 0; p.flash = performance.now();
+    sfx.bump();
+    if (p.body.length === 0) { p.alive = false; return endRound(o); }
+  }
+
+  function tickBite() {
+    const order = tickN % 2 ? [1, 0] : [0, 1];
+    for (const i of order) {
+      if (state !== 'play') return;
+      const p = players[i], o = players[1 - i];
+      if (p.stun > 0) { p.stun--; continue; }
+      p.dir = p.human ? takeQueued(p) : aiBite(p);
+      const h = p.body[0], nx = h.x + DX[p.dir], ny = h.y + DY[p.dir];
+      const myTail = p.body[p.body.length - 1], oTail = o.body[o.body.length - 1];
+      let bit = false, blocked = false;
+      if (!inb(nx, ny) || grid[idx(nx, ny)] === OBST || squeezed(h.x, h.y, p.dir)) blocked = true;
+      else if (nx === oTail.x && ny === oTail.y) bit = true;
+      else if (grid[idx(nx, ny)] === o.id) blocked = true;
+      else if (grid[idx(nx, ny)] === p.id && !(nx === myTail.x && ny === myTail.y && !p.pendingGrow && p.body.length > 1)) blocked = true;
+      if (blocked) { bump(p, o); rebuildBiteGrid(); updateHud(); continue; }
+      if (bit) {
+        o.body.pop(); o.growTimer = 0; o.flash = performance.now();
+        sfx.bite();
+        effects.push({ x: nx, y: ny, color: p.color, t: performance.now(), small: true });
+        if (o.body.length === 0) { o.alive = false; rebuildBiteGrid(); updateHud(); return endRound(p); }
+      }
+      p.body.unshift({ x: nx, y: ny });
+      if (p.pendingGrow) p.pendingGrow--; else p.body.pop();
+      if (++p.growTimer >= GROW_EVERY && p.body.length + p.pendingGrow < BITE_MAX) {
+        p.pendingGrow++; p.growTimer = 0; sfx.grow();
+      }
+      rebuildBiteGrid();
+      updateHud();
+    }
+    if (Math.min(...players.map(p => p.body.length)) <= 4) startMusic();
+  }
+
+  function tick() {
+    tickN++;
+    if (S.mode === 'trap') tickTrap(); else tickBite();
+  }
+
+  function endRound(winner) {
+    stopMusic();
+    if (S.mode === 'bite' && winner) winner.score++;
+    roundResult = winner;
+    updateHud();
+    if (winner && (winner.human || S.humans === 0)) sfx.win();
+    state = round >= S.rounds ? 'matchover' : 'roundover';
+    setTimeout(() => (state === 'roundover' || state === 'matchover') && showResult(), 700);
+  }
+  function nextRound() { ensureAudio(); newRound(); }
+
+  // ------------------------------------------------------------------ overlay / hud
+  const overlay = document.getElementById('overlay'), obox = document.getElementById('obox');
+  function hideOverlay() { overlay.classList.remove('show'); }
+  function scoreRows() {
+    return [...players].sort((a, b) => b.score - a.score).map(p =>
+      `<div><span style="color:${p.color}">■ ${p.name}${p.human ? ' (P' + (p.i + 1) + ')' : ' (CPU)'}</span><b>${p.score}</b></div>`).join('');
+  }
+  function showResult() {
+    const w = roundResult;
+    let h;
+    if (state === 'matchover') {
+      const top = Math.max(...players.map(p => p.score));
+      const champs = players.filter(p => p.score === top);
+      const title = champs.length > 1 ? 'DRAW' : `${champs[0].name} WINS`;
+      h = `<h2 style="color:${champs.length > 1 ? 'var(--accent)' : champs[0].color}">${title}</h2>
+        <div class="small">Final after ${round} round${round > 1 ? 's' : ''}</div>
+        <div class="rows">${scoreRows()}</div>
+        <div class="btns"><button id="ob1">Play again</button><button id="ob2">Menu</button></div>`;
+    } else {
+      const what = S.mode === 'trap' ? (w ? `${w.name} survives` : 'Nobody survives') : `${w.name} takes the round`;
+      h = `<h2>ROUND ${round} / ${S.rounds}</h2>
+        <div style="color:${w ? w.color : 'var(--muted)'}">${what}</div>
+        <div class="rows">${scoreRows()}</div>
+        <div class="btns"><button id="ob1">Next round</button><button id="ob2">Menu</button></div>
+        <div class="small" style="margin-top:8px">Space / tap to continue</div>`;
+    }
+    obox.innerHTML = h;
+    overlay.classList.add('show');
+    document.getElementById('ob1').onclick = () => { ensureAudio(); state === 'matchover' ? newMatch() : nextRound(); };
+    document.getElementById('ob2').onclick = toMenu;
+  }
+  let pausedFrom = null;
+  function togglePause() {
+    if (state === 'play' || state === 'countdown') {
+      pausedFrom = state; state = 'paused'; stopMusic();
+      obox.innerHTML = `<h2>PAUSED</h2><div class="btns"><button id="ob1">Resume</button><button id="ob2">Quit to menu</button></div>`;
+      overlay.classList.add('show');
+      document.getElementById('ob1').onclick = togglePause;
+      document.getElementById('ob2').onclick = toMenu;
+    } else if (state === 'paused') {
+      ensureAudio();
+      state = pausedFrom; hideOverlay(); last = performance.now(); acc = 0;
+      if (state === 'countdown') countdownT = performance.now();
+      const n = players.filter(p => p.alive).length;
+      if (state === 'play' && ((S.mode === 'trap' && n === 2) || (S.mode === 'bite' && Math.min(...players.map(p => p.body.length)) <= 4))) startMusic();
+    }
+  }
+  function updateHud() {
+    const host = document.getElementById('scores');
+    host.innerHTML = players.map(p => {
+      const extra = S.mode === 'bite' ? ` <span style="color:var(--muted)">len ${p.body ? p.body.length : 0}</span>` : '';
+      return `<span class="chip${p.alive === false ? ' dead' : ''}"><span class="sw" style="background:${p.color}"></span>
+        ${p.human ? 'P' + (p.i + 1) : 'CPU'}${extra}<span class="pts" style="color:${p.color}">${p.score}</span></span>`;
+    }).join('');
+    document.getElementById('roundlbl').textContent = `Round ${round}/${S.rounds}`;
+  }
+
+  // ------------------------------------------------------------------ rendering
+  const cv = document.getElementById('cv'), ctx = cv.getContext('2d');
+  let cs = 16, dpr = 1;
+  function layout() {
+    if (state === 'menu') return;
+    const hud = document.getElementById('hud').offsetHeight + 16;
+    const discs = S.humans > 0 && touchUI;
+    const portrait = innerHeight > innerWidth;
+    let aw = innerWidth - 20, ah = innerHeight - hud - 12;
+    if (discs && !portrait) aw -= (S.humans === 2 ? 2 : 1) * 168;
+    if (discs && portrait) ah -= 200;
+    cs = Math.max(6, Math.floor(Math.min(aw / (COLS + 2), ah / (ROWS + 2))));
+    dpr = window.devicePixelRatio || 1;
+    const w = cs * (COLS + 2), h = cs * (ROWS + 2);
+    cv.width = w * dpr; cv.height = h * dpr;
+    cv.style.width = w + 'px'; cv.style.height = h + 'px';
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  }
+  window.addEventListener('resize', layout);
+
+  function cell(x, y, color, inset = 1) {
+    const i = cs >= 10 ? inset : 0;
+    ctx.fillStyle = color;
+    ctx.fillRect((x + 1) * cs + i, (y + 1) * cs + i, cs - 2 * i, cs - 2 * i);
+  }
+  function hexA(hex, a) {
+    const n = parseInt(hex.slice(1), 16);
+    return `rgba(${n >> 16},${(n >> 8) & 255},${n & 255},${a})`;
+  }
+
+  let countdownT = 0;
+  function render(now) {
+    const W = cs * (COLS + 2), H = cs * (ROWS + 2);
+    ctx.fillStyle = '#05060a';
+    ctx.fillRect(0, 0, W, H);
+    // border wall
+    ctx.fillStyle = '#2b3a78';
+    ctx.fillRect(0, 0, W, cs); ctx.fillRect(0, H - cs, W, cs);
+    ctx.fillRect(0, 0, cs, H); ctx.fillRect(W - cs, 0, cs, H);
+    // faint grid
+    ctx.fillStyle = 'rgba(120,140,200,0.06)';
+    for (let x = 1; x <= COLS; x++) for (let y = 1; y <= ROWS; y++) ctx.fillRect(x * cs + cs / 2 - 1, y * cs + cs / 2 - 1, 2, 2);
+    for (const [x, y] of obstacles) { cell(x, y, '#6a5cd8', 0); cell(x, y, '#8d80ff', Math.max(2, cs / 4 | 0)); }
+
+    if (S.mode === 'trap') {
+      for (let y = 0; y < ROWS; y++) for (let x = 0; x < COLS; x++) {
+        const v = grid[idx(x, y)];
+        if (v > 0) {
+          const p = players[v - 1];
+          cell(x, y, p.alive ? p.color : hexA(p.color, 0.45));
+        }
+      }
+      for (const p of players) if (p.alive) {
+        cell(p.x, p.y, '#ffffff', Math.max(2, cs / 4 | 0));
+        if (state === 'countdown') {     // show which way each trail will launch
+          ctx.strokeStyle = p.color; ctx.lineWidth = 2;
+          ctx.strokeRect((p.x + 1) * cs - 3, (p.y + 1) * cs - 3, cs + 6, cs + 6);
+          const ax = (p.x + 1.5 + DX[p.dir] * 2) * cs, ay = (p.y + 1.5 + DY[p.dir] * 2) * cs;
+          ctx.fillStyle = p.color; ctx.beginPath(); ctx.arc(ax, ay, cs / 4, 0, 7); ctx.fill();
+        }
+      }
+    } else {
+      for (const p of players) {
+        const flashing = now - p.flash < 300 && ((now / 60) | 0) % 2;
+        p.body.forEach((c, k) => {
+          const tailEnd = k === p.body.length - 1;
+          cell(c.x, c.y, flashing ? '#ffffff' : p.color);
+          if (tailEnd && p.body.length > 1) cell(c.x, c.y, '#05060a', Math.max(3, cs / 3 | 0));
+        });
+        if (p.body.length) {
+          const h = p.body[0];
+          cell(h.x, h.y, '#ffffff', Math.max(2, cs / 4 | 0));
+          if (p.stun > 0) { ctx.strokeStyle = '#ffffff'; ctx.strokeRect((h.x + 1) * cs, (h.y + 1) * cs, cs, cs); }
+        }
+      }
+    }
+    // vanishing trails
+    ghosts = ghosts.filter(g => now - g.t < 600);
+    for (const g of ghosts) {
+      const a = 0.6 * (1 - (now - g.t) / 600);
+      for (const i of g.cells) cell(i % COLS, (i / COLS) | 0, hexA(g.color, a));
+    }
+    // crash bursts
+    effects = effects.filter(e => now - e.t < 500);
+    for (const e of effects) {
+      const k = (now - e.t) / 500;
+      ctx.strokeStyle = hexA(e.color, 1 - k);
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.arc((e.x + 1.5) * cs, (e.y + 1.5) * cs, cs * (e.small ? 0.5 + k * 1.5 : 0.5 + k * 4), 0, 7);
+      ctx.stroke();
+    }
+    if (state === 'countdown') {
+      ctx.fillStyle = 'rgba(255,255,255,0.92)';
+      ctx.font = `bold ${cs * 6}px Consolas, monospace`;
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText(String(countdown), W / 2, H / 2);
+    }
+  }
+
+  // ------------------------------------------------------------------ loop
+  const tickMs = () => 1000 / ((3.5 + S.speed * 1.6) * (S.mode === 'bite' ? 0.85 : 1));
+  function frame(now) {
+    const dt = Math.min(100, now - (last || now));
+    last = now;
+    pollPads();
+    if (state === 'countdown' && now - countdownT >= 550) {
+      countdown--; countdownT = now;
+      if (countdown <= 0) { state = 'play'; acc = 0; sfx.go(); if (S.mode === 'trap' && players.length === 2) startMusic(); }
+      else sfx.count();
+    }
+    if (state === 'play') {
+      // Fast-forward once every human is out of a Trap round.
+      const ff = S.mode === 'trap' && S.humans > 0 && !players.some(p => p.human && p.alive) ? 4 : 1;
+      acc += dt * ff;
+      const step = tickMs();
+      while (acc >= step && state === 'play') { tick(); acc -= step; }
+    }
+    if (state !== 'menu') render(now);
+    requestAnimationFrame(frame);
+  }
+
+  // ------------------------------------------------------------------ screens
+  const touchUI = matchMedia('(pointer: coarse)').matches || 'ontouchstart' in window;
+  const discs = [document.getElementById('disc0'), document.getElementById('disc1')];
+  discs.forEach((d, i) => setupDisc(d, i));
+
+  function startGame() {
+    ensureAudio();
+    document.getElementById('menu').style.display = 'none';
+    document.getElementById('game').style.display = 'flex';
+    // Discs: one human gets a single disc on the right; two humans get one each side.
+    const padsL = document.getElementById('pads-l'), pads = document.getElementById('pads');
+    const landscape = innerWidth > innerHeight;
+    discs.forEach((d, i) => {
+      d.classList.toggle('show', touchUI && i < S.humans);
+      d.style.color = COLORS[i];
+      d.querySelector('.pl').textContent = 'P' + (i + 1);
+    });
+    if (S.humans === 2 && landscape) padsL.appendChild(discs[0]); else pads.insertBefore(discs[0], discs[1]);
+    state = 'countdown';
+    newMatch();
+    layout();
+  }
+  function toMenu() {
+    stopMusic();
+    state = 'menu';
+    hideOverlay();
+    document.getElementById('game').style.display = 'none';
+    document.getElementById('menu').style.display = 'block';
+    buildMenu();
+  }
+  document.getElementById('start').onclick = startGame;
+  document.getElementById('pausebtn').onclick = togglePause;
+  document.getElementById('mutebtn').onclick = () => { ensureAudio(); setMuted(!muted); };
+  cv.addEventListener('pointerdown', () => {
+    ensureAudio();
+    if (state === 'roundover' && overlay.classList.contains('show')) nextRound();
+  });
+
+  setMuted(muted);
+  buildMenu();
+  requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>
