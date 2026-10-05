@@ -109,6 +109,8 @@ with two formats, Trap and Bite.
 Create a new folder at the repo root with an `index.html` inside, keep it
 dependency-free, and add a section here. Also add a button for it to the root
 landing page (`/index.html`) — copy an existing `<a class="tool">` block and change
-the `href`, name and description. If it should install to a home screen, drop in a
+the `href`, name and description. Point the `href` at the file
+(`./<tool-name>/index.html`), not just the folder, so the link also works when the
+files are opened locally rather than from GitHub Pages. If it should install to a home screen, drop in a
 `manifest.json` alongside it with `start_url` and `scope` set to `"./"` so the paths
 stay correct under the `/utility/` Pages subpath.
