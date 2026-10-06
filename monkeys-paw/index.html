@@ -127,6 +127,11 @@
   .concede { text-align: center; padding: 26px 18px; border: 1px solid #2f5a42; background: #142019; border-radius: var(--radius); }
   .concede h2 { font-family: Georgia, serif; font-weight: normal; color: var(--good); font-size: 26px; margin: 0 0 8px; }
   .concede p { margin: 0; font-size: 16px; }
+  .residual { text-align: left; max-width: 620px; margin: 18px auto 0; padding-top: 14px; border-top: 1px dashed #2f5a42; }
+  .residual h3 { font-size: 12px; text-transform: uppercase; letter-spacing: .6px; color: var(--muted); font-weight: 600; margin: 0 0 6px; }
+  .residual ul { margin: 0; padding-left: 20px; font-size: 15px; color: var(--text); }
+  .surrender { margin-top: 18px; text-align: center; }
+  .surrender p { color: var(--muted); font-size: 13px; margin: 8px 0 0; }
 
   .how { margin-top: 26px; color: var(--muted); font-size: 14px; }
   .how summary { cursor: pointer; color: var(--text); min-height: 44px; display: flex; align-items: center; }
@@ -174,7 +179,7 @@
       <li>The paw never does the task. It only shows what could go wrong.</li>
       <li><b>Literal</b> reads your words at their narrowest and most inconvenient. <b>Presumptuous</b> fills every gap with a confident wrong guess.</li>
       <li>Each curse names the exact words (or the missing detail) that cause it, how bad it is, and the smallest fix.</li>
-      <li>Copy the fixed prompt (every fix applied), or apply the fixes your own way, and wish again.</li>
+      <li>Apply the fixes your own way and wish again — or surrender to see the fixed prompt (free) and copy it.</li>
       <li>When nothing meaningful is left, the paw concedes — and a concession doesn't cost a wish.</li>
       <li>Three wishes per paw. Every curse describes something real AI models do — no magic.</li>
     </ul>
@@ -299,7 +304,15 @@
 
     if (res.verdict === "conceded") {
       const box = el("div", "concede");
-      box.append(el("h2", null, "The paw concedes."), el("p", null, res.concession || "The wording holds."));
+      const [why, notes] = splitConcession(res.concession || "");
+      box.append(el("h2", null, "The paw concedes."), el("p", null, why || "The wording holds."));
+      if (notes.length) {
+        const r = el("div", "residual");
+        const ul = el("ul");
+        notes.forEach((n) => ul.append(el("li", null, n)));
+        r.append(el("h3", null, "Residual notes — not curses"), ul);
+        box.append(r);
+      }
       results.append(box);
       results.scrollIntoView({ behavior: "smooth", block: "start" });
       return;
@@ -319,8 +332,31 @@
       column("presume", "PRESUMPTUOUS", "Fills every gap with a confident wrong guess.", res.presumptuous || [])
     );
     results.append(cols);
-    if (res.fixed_prompt) results.append(fixedBlock(res.fixed_prompt));
+    if (res.fixed_prompt) {
+      // The fix stays hidden until the user gives up: working it out is the training.
+      const fixed = fixedBlock(res.fixed_prompt);
+      fixed.hidden = true;
+      const wrap = el("div", "surrender");
+      const btn = el("button", null, "Surrender — show me the fix");
+      btn.addEventListener("click", () => { wrap.remove(); fixed.hidden = false; fixed.scrollIntoView({ behavior: "smooth", block: "nearest" }); });
+      wrap.append(btn, el("p", null, "Free. Try fixing it yourself first."));
+      results.append(wrap, fixed);
+    }
     results.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+
+  // The paw may wrap quoted phrases in its own quote marks; the page adds curly quotes itself.
+  const QUOTES = `"'“”‘’«»\``;
+  function stripQuotes(t) {
+    t = String(t || "").trim();
+    while (t.length > 1 && QUOTES.includes(t[0]) && QUOTES.includes(t[t.length - 1])) t = t.slice(1, -1).trim();
+    return t;
+  }
+
+  function splitConcession(text) {
+    const m = text.split(/\n?\s*Residual notes[^\n]*:\s*\n?/i);
+    const notes = (m[1] || "").split("\n").map((l) => l.replace(/^\s*[-*•]\s*/, "").trim()).filter(Boolean);
+    return [m[0].trim(), notes.slice(0, 2)];
   }
 
   function fixedBlock(text) {
@@ -360,7 +396,7 @@
 
       const dl = el("dl");
       const trig = el("dd", "trigger");
-      if (k.trigger_type === "phrase") trig.append(el("q", null, k.trigger));
+      if (k.trigger_type === "phrase") trig.append(el("q", null, stripQuotes(k.trigger)));
       else { trig.append(el("em", null, "Omission: "), document.createTextNode(k.trigger)); }
       dl.append(el("dt", null, "Caused by"), trig, el("dt", null, "Minimal fix"), el("dd", "fix", k.fix));
       card.append(dl);
