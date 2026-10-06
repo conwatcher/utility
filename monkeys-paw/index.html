@@ -1,0 +1,342 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>The Monkey's Paw</title>
+<meta name="description" content="Prompt-safety training: see how an AI could obey your prompt exactly and still hurt you.">
+<meta name="theme-color" content="#121014">
+<meta name="color-scheme" content="dark">
+<style>
+  :root {
+    --bg: #121014;
+    --panel: #1c1920;
+    --panel-2: #262229;
+    --line: #36303a;
+    --text: #ece6dc;
+    --muted: #9a9095;
+    --bone: #d9c9a3;
+    --literal: #7fb2ff;
+    --presume: #e48cff;
+    --nuisance: #c9b458;
+    --costly: #f08a3c;
+    --catastrophic: #ff4f5e;
+    --good: #6fcf97;
+    --radius: 10px;
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body {
+    margin: 0; padding: 0; background: var(--bg); color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    line-height: 1.45;
+  }
+  body {
+    min-height: 100vh; min-height: 100dvh;
+    padding: max(20px, env(safe-area-inset-top)) 16px max(28px, env(safe-area-inset-bottom));
+  }
+  .shell { max-width: 1040px; margin: 0 auto; }
+  a { color: var(--bone); }
+
+  /* ---------- header ---------- */
+  header { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; margin-bottom: 18px; }
+  .back { color: var(--muted); font-size: 14px; text-decoration: none; width: 100%; }
+  h1 {
+    font-family: Georgia, "Times New Roman", serif; font-weight: normal;
+    font-size: clamp(28px, 6vw, 40px); letter-spacing: 1px; margin: 0; color: var(--bone);
+  }
+  .tagline { color: var(--muted); font-size: 14px; margin: 2px 0 0; }
+  .titles { flex: 1; min-width: 220px; }
+
+  .wishes { display: flex; align-items: flex-end; gap: 10px; }
+  .wishes .count { font-size: 13px; color: var(--muted); text-align: right; line-height: 1.2; }
+  .wishes .count b { display: block; font-size: 22px; color: var(--bone); font-weight: 600; }
+  .paw { width: 64px; height: 64px; }
+  .paw .finger { transform-box: fill-box; transform-origin: 50% 100%; transition: transform .6s cubic-bezier(.5,-0.4,.4,1.4), fill .6s; fill: var(--bone); }
+  .paw .finger.curled { transform: scaleY(.38); fill: #5e5548; }
+  .paw .palm { fill: var(--bone); }
+
+  /* ---------- input ---------- */
+  .panel { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 16px; }
+  label.lbl { display: block; font-size: 14px; color: var(--muted); margin-bottom: 8px; }
+  textarea {
+    width: 100%; min-height: 170px; resize: vertical; padding: 12px;
+    background: var(--bg); color: var(--text); border: 1px solid var(--line); border-radius: 8px;
+    font: 16px/1.45 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; /* 16px stops iOS zoom */
+  }
+  textarea:focus { outline: 2px solid var(--bone); outline-offset: 1px; }
+  .row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-top: 12px; }
+  .chars { color: var(--muted); font-size: 13px; margin-left: auto; }
+  button {
+    font: inherit; font-size: 16px; min-height: 48px; padding: 0 20px; border-radius: 8px; cursor: pointer;
+    border: 1px solid var(--line); background: var(--panel-2); color: var(--text); touch-action: manipulation;
+  }
+  button.primary { background: var(--bone); color: #1a1612; border-color: var(--bone); font-weight: 600; }
+  button:disabled { opacity: .45; cursor: not-allowed; }
+  .notice { margin-top: 12px; padding: 12px 14px; border-radius: 8px; font-size: 15px; display: none; }
+  .notice.show { display: block; }
+  .notice.err { background: #2c1519; border: 1px solid #5a2128; color: #ffc2c8; }
+  .notice.info { background: #1f1c16; border: 1px solid #4a4130; color: var(--bone); }
+
+  /* ---------- results ---------- */
+  #results { margin-top: 22px; display: none; }
+  #results.show { display: block; }
+  .remark {
+    font-family: Georgia, "Times New Roman", serif; font-style: italic; font-size: 18px;
+    color: var(--bone); margin: 0 0 16px; padding-left: 14px; border-left: 3px solid var(--bone);
+  }
+  .tally { display: flex; gap: 8px; flex-wrap: wrap; margin: 0 0 14px; }
+  .pill { font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: .6px; padding: 4px 9px; border-radius: 999px; border: 1px solid currentColor; }
+  .pill.nuisance { color: var(--nuisance); }
+  .pill.costly { color: var(--costly); }
+  .pill.catastrophic { color: var(--catastrophic); }
+
+  .cols { display: grid; grid-template-columns: 1fr; gap: 16px; }
+  @media (min-width: 720px) { .cols { grid-template-columns: 1fr 1fr; } }
+  .col h2 { font-size: 15px; letter-spacing: 2px; margin: 0 0 2px; }
+  .col .sub { font-size: 13px; color: var(--muted); margin: 0 0 12px; }
+  .col.literal h2 { color: var(--literal); }
+  .col.presume h2 { color: var(--presume); }
+  .col.literal .curse { border-top: 3px solid var(--literal); }
+  .col.presume .curse { border-top: 3px solid var(--presume); }
+
+  .curse { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 14px; margin-bottom: 12px; }
+  .curse .top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+  .curse .num { color: var(--muted); font-size: 13px; }
+  .curse .what { margin: 0 0 10px; font-size: 16px; }
+  .curse dt { font-size: 12px; text-transform: uppercase; letter-spacing: .6px; color: var(--muted); margin-top: 8px; }
+  .curse dd { margin: 3px 0 0; font-size: 15px; }
+  .curse .trigger q { quotes: "\201C" "\201D"; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 14px; background: var(--panel-2); padding: 1px 5px; border-radius: 4px; }
+  .curse .trigger em { color: var(--muted); }
+  .curse .fix { background: #16201a; border: 1px solid #284033; border-radius: 6px; padding: 8px 10px; }
+  .empty { color: var(--muted); font-style: italic; padding: 14px; border: 1px dashed var(--line); border-radius: var(--radius); }
+
+  .concede { text-align: center; padding: 26px 18px; border: 1px solid #2f5a42; background: #142019; border-radius: var(--radius); }
+  .concede h2 { font-family: Georgia, serif; font-weight: normal; color: var(--good); font-size: 26px; margin: 0 0 8px; }
+  .concede p { margin: 0; font-size: 16px; }
+
+  .how { margin-top: 26px; color: var(--muted); font-size: 14px; }
+  .how summary { cursor: pointer; color: var(--text); min-height: 44px; display: flex; align-items: center; }
+  .how ul { padding-left: 20px; margin: 6px 0; }
+  .loading { animation: pulse 1.4s ease-in-out infinite; }
+  @keyframes pulse { 50% { opacity: .5; } }
+  @media (prefers-reduced-motion: reduce) { .loading { animation: none; } .paw .finger { transition: none; } }
+</style>
+</head>
+<body>
+<div class="shell">
+  <header>
+    <a class="back" href="../index.html">&lsaquo; Utility</a>
+    <div class="titles">
+      <h1>The Monkey's Paw</h1>
+      <p class="tagline">Paste a prompt. The paw shows how an AI could obey it exactly and still hurt you.</p>
+    </div>
+    <div class="wishes" aria-live="polite">
+      <div class="count"><b id="wishCount">3</b>wishes left</div>
+      <svg class="paw" viewBox="0 0 64 64" aria-hidden="true">
+        <rect class="finger" data-i="0" x="12" y="6"  width="10" height="30" rx="5"/>
+        <rect class="finger" data-i="1" x="27" y="2"  width="10" height="34" rx="5"/>
+        <rect class="finger" data-i="2" x="42" y="6"  width="10" height="30" rx="5"/>
+        <path class="palm" d="M8 32 Q8 30 12 30 L52 30 Q56 30 56 34 L56 46 Q56 60 40 60 L24 60 Q8 60 8 46 Z"/>
+      </svg>
+    </div>
+  </header>
+
+  <section class="panel">
+    <label class="lbl" for="prompt">Your prompt — exactly as you'd send it</label>
+    <textarea id="prompt" spellcheck="false" placeholder="e.g. Summarize this contract for my client and flag anything risky."></textarea>
+    <div class="row">
+      <button class="primary" id="wishBtn">Make a wish</button>
+      <button id="newPawBtn" hidden>Take a new paw</button>
+      <span class="chars" id="chars">0 / 8000</span>
+    </div>
+    <div class="notice" id="notice" role="status"></div>
+  </section>
+
+  <section id="results" aria-live="polite"></section>
+
+  <details class="how">
+    <summary>How the paw works</summary>
+    <ul>
+      <li>The paw never does the task. It only shows what could go wrong.</li>
+      <li><b>Literal</b> reads your words at their narrowest and most inconvenient. <b>Presumptuous</b> fills every gap with a confident wrong guess.</li>
+      <li>Each curse names the exact words (or the missing detail) that cause it, how bad it is, and the smallest fix.</li>
+      <li>Apply the fixes and wish again. When nothing meaningful is left, the paw concedes.</li>
+      <li>Three wishes per paw. Every curse describes something real AI models do — no magic.</li>
+    </ul>
+  </details>
+</div>
+
+<script src="./config.js"></script>
+<script>
+(() => {
+  const CFG = window.PAW_CONFIG || {};
+  const API = (CFG.workerUrl || "").replace(/\/+$/, "");
+  const MAX = 8000;
+  const KEY = "monkeysPaw.session";
+
+  const $ = (id) => document.getElementById(id);
+  const promptEl = $("prompt"), wishBtn = $("wishBtn"), newPawBtn = $("newPawBtn");
+  const notice = $("notice"), results = $("results"), chars = $("chars"), wishCount = $("wishCount");
+
+  let session = null;
+  let remaining = 3;
+  let busy = false;
+
+  const store = {
+    get() { try { return localStorage.getItem(KEY); } catch { return null; } },
+    set(v) { try { v ? localStorage.setItem(KEY, v) : localStorage.removeItem(KEY); } catch {} },
+  };
+
+  function el(tag, cls, text) {
+    const n = document.createElement(tag);
+    if (cls) n.className = cls;
+    if (text != null) n.textContent = text;   // always textContent: model output is never trusted as HTML
+    return n;
+  }
+
+  function say(msg, kind = "err") {
+    notice.className = "notice show " + kind;
+    notice.textContent = msg;
+  }
+  function clearNotice() { notice.className = "notice"; notice.textContent = ""; }
+
+  function renderWishes() {
+    wishCount.textContent = remaining;
+    document.querySelectorAll(".paw .finger").forEach((f) => {
+      f.classList.toggle("curled", Number(f.dataset.i) >= remaining);
+    });
+    const spent = remaining <= 0;
+    newPawBtn.hidden = !spent;
+    updateButton();
+    if (spent && !busy) say("The paw is spent. Take a new paw to keep going.", "info");
+  }
+
+  function updateButton() {
+    const len = promptEl.value.trim().length;
+    chars.textContent = `${promptEl.value.length} / ${MAX}`;
+    wishBtn.disabled = busy || remaining <= 0 || len < 10 || promptEl.value.length > MAX;
+  }
+
+  async function call(path, opts = {}) {
+    const res = await fetch(API + path, {
+      ...opts,
+      headers: { "Content-Type": "application/json", ...(opts.headers || {}) },
+    });
+    let data = {};
+    try { data = await res.json(); } catch {}
+    return { ok: res.ok, status: res.status, data };
+  }
+
+  async function restore() {
+    if (!API || API.includes("YOUR-SUBDOMAIN")) {
+      say("Setup needed: put your Cloudflare Worker URL in monkeys-paw/config.js.", "info");
+      wishBtn.disabled = true;
+      return;
+    }
+    const id = store.get();
+    if (!id) return renderWishes();
+    try {
+      const r = await call(`/session?id=${encodeURIComponent(id)}`, { method: "GET" });
+      if (r.ok) { session = id; remaining = r.data.remaining; }
+      else store.set(null);
+    } catch { /* offline: leave defaults, the wish call will report */ }
+    renderWishes();
+  }
+
+  async function ensureSession() {
+    if (session) return true;
+    const r = await call("/session", { method: "POST", body: "{}" });
+    if (!r.ok) { say(r.data.error || "Could not reach the paw."); return false; }
+    session = r.data.session; remaining = r.data.remaining; store.set(session);
+    renderWishes();
+    return true;
+  }
+
+  async function wish() {
+    const prompt = promptEl.value.trim();
+    if (busy || remaining <= 0 || prompt.length < 10) return;
+    busy = true; updateButton(); clearNotice();
+    wishBtn.textContent = "The paw considers…"; wishBtn.classList.add("loading");
+    try {
+      if (!(await ensureSession())) return;
+      let r = await call("/wish", { method: "POST", body: JSON.stringify({ session, prompt }) });
+      if (r.status === 404 && r.data.code === "no_session") {
+        session = null; store.set(null);
+        if (!(await ensureSession())) return;
+        r = await call("/wish", { method: "POST", body: JSON.stringify({ session, prompt }) });
+      }
+      if (typeof r.data.remaining === "number") remaining = r.data.remaining;
+      if (!r.ok) { say(r.data.error || "The paw went still."); return; }
+      render(r.data.result);
+    } catch {
+      say("Could not reach the paw. Check your connection and try again.");
+    } finally {
+      busy = false;
+      wishBtn.textContent = "Make a wish"; wishBtn.classList.remove("loading");
+      renderWishes();
+    }
+  }
+
+  function render(res) {
+    results.replaceChildren();
+    results.className = "show";
+    if (res.paw_remark) results.append(el("p", "remark", res.paw_remark));
+
+    if (res.verdict === "conceded") {
+      const box = el("div", "concede");
+      box.append(el("h2", null, "The paw concedes."), el("p", null, res.concession || "The wording holds."));
+      results.append(box);
+      results.scrollIntoView({ behavior: "smooth", block: "start" });
+      return;
+    }
+
+    const all = [...(res.literal || []), ...(res.presumptuous || [])];
+    const tally = el("div", "tally");
+    for (const sev of ["catastrophic", "costly", "nuisance"]) {
+      const n = all.filter((c) => c.severity === sev).length;
+      if (n) tally.append(el("span", "pill " + sev, `${n} ${sev}`));
+    }
+    results.append(tally);
+
+    const cols = el("div", "cols");
+    cols.append(
+      column("literal", "LITERAL", "Does exactly what you said — at its narrowest.", res.literal || []),
+      column("presume", "PRESUMPTUOUS", "Fills every gap with a confident wrong guess.", res.presumptuous || [])
+    );
+    results.append(cols);
+    results.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+
+  function column(cls, title, sub, curses) {
+    const c = el("div", "col " + cls);
+    c.append(el("h2", null, title), el("p", "sub", sub));
+    if (!curses.length) { c.append(el("div", "empty", "No meaningful curse from this reader.")); return c; }
+    curses.forEach((k, i) => {
+      const card = el("article", "curse");
+      const top = el("div", "top");
+      top.append(el("span", "num", `Curse ${i + 1}`), el("span", "pill " + k.severity, k.severity));
+      card.append(top, el("p", "what", k.curse));
+
+      const dl = el("dl");
+      const trig = el("dd", "trigger");
+      if (k.trigger_type === "phrase") trig.append(el("q", null, k.trigger));
+      else { trig.append(el("em", null, "Omission: "), document.createTextNode(k.trigger)); }
+      dl.append(el("dt", null, "Caused by"), trig, el("dt", null, "Minimal fix"), el("dd", "fix", k.fix));
+      card.append(dl);
+      c.append(card);
+    });
+    return c;
+  }
+
+  promptEl.addEventListener("input", updateButton);
+  promptEl.addEventListener("keydown", (e) => { if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) wish(); });
+  wishBtn.addEventListener("click", wish);
+  newPawBtn.addEventListener("click", () => {
+    session = null; store.set(null); remaining = 3; clearNotice(); renderWishes();
+  });
+
+  restore();
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,19 @@
+{
+  "name": "monkeys-paw",
+  "main": "worker.js",
+  "compatibility_date": "2025-09-01",
+  "kv_namespaces": [
+    { "binding": "WISHES", "id": "PASTE_YOUR_KV_NAMESPACE_ID_HERE" }
+  ],
+  "vars": {
+    "MODEL": "claude-sonnet-5-5",
+    "SYSTEM_PROMPT_URL": "https://conwatcher.github.io/utility/monkeys-paw/paw-system-prompt.md",
+    "ALLOWED_ORIGINS": "https://conwatcher.github.io",
+    "WISHES_PER_SESSION": "3",
+    "SESSIONS_PER_IP_PER_DAY": "3",
+    "MAX_PROMPT_CHARS": "8000",
+    "EFFORT": "medium",
+    "MAX_TOKENS": "8000",
+    "ENABLE_FALLBACKS": "true"
+  }
+}
