@@ -38,13 +38,14 @@ const CURSE_SCHEMA = {
 const RESULT_SCHEMA = {
   type: "object",
   additionalProperties: false,
-  required: ["verdict", "paw_remark", "literal", "presumptuous", "concession"],
+  required: ["verdict", "paw_remark", "literal", "presumptuous", "concession", "fixed_prompt"],
   properties: {
     verdict: { type: "string", enum: ["cursed", "conceded"] },
     paw_remark: { type: "string" },
     literal: { type: "array", items: CURSE_SCHEMA },
     presumptuous: { type: "array", items: CURSE_SCHEMA },
     concession: { type: "string" },
+    fixed_prompt: { type: "string" },
   },
 };
 
@@ -147,6 +148,12 @@ async function makeWish(request, env, cors) {
     s.remaining += 1;
     await saveSession(env, id, s);
     return json({ error: err.userMessage || "The paw went still. Your wish was not spent.", remaining: s.remaining }, 502, cors);
+  }
+
+  // A concession is the user's win, so it doesn't cost a wish.
+  if (result.verdict === "conceded") {
+    s.remaining += 1;
+    await saveSession(env, id, s);
   }
 
   return json({ result, remaining: s.remaining }, 200, cors);

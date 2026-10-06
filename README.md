@@ -104,6 +104,30 @@ with two formats, Trap and Bite.
   synthesised crash, bite and countdown sounds. No asset files. **M** mutes
 - Installable as a PWA: **Share → Add to Home Screen**
 
+### The Monkey's Paw
+
+A prompt-safety training tool. Paste a prompt you're about to send to an AI and the
+paw shows every realistic way a model could obey it exactly and still hurt you. It
+never does the task itself.
+
+**URL:** https://conwatcher.github.io/utility/monkeys-paw/
+**Source:** [`monkeys-paw/`](monkeys-paw/)
+
+- Two readers side by side: **Literal** (the hostile, narrowest reading) and
+  **Presumptuous** (confident, wrong gap-filling)
+- Each curse shows what the AI does, the exact phrase or omission that causes it,
+  a severity (nuisance / costly / catastrophic), and the minimal fix
+- **Copy fixed prompt**: your prompt with every fix applied, with [placeholders] for
+  facts only you know
+- Three wishes per paw; when nothing meaningful is left, the paw concedes, and a
+  concession is free
+- Unlike the other tools, this one calls the Anthropic API through a Cloudflare
+  Worker (`monkeys-paw/worker/`) that holds the API key as a secret and enforces the
+  wish limit. Setup: [`monkeys-paw/worker/SETUP.md`](monkeys-paw/worker/SETUP.md).
+  Tune the paw's behavior in
+  [`monkeys-paw/paw-system-prompt.md`](monkeys-paw/paw-system-prompt.md)
+- Installable as a PWA: **Share → Add to Home Screen**
+
 ## Adding a tool
 
 Create a new folder at the repo root with an `index.html` inside, keep it

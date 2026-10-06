@@ -63,7 +63,7 @@ Then put the printed Worker URL in `monkeys-paw/config.js`.
 - A session is created by the Worker (`POST /session`) the first time a visitor
   wishes. Its remaining-wish count lives in KV, not the browser.
 - `POST /wish` spends a wish *before* calling Anthropic and refunds it if the call
-  fails (Anthropic error, refusal, truncated reply). A concession still costs a wish.
+  fails (Anthropic error, refusal, truncated reply). A concession is free: the wish is refunded.
 - Starting a new paw is capped per visitor per day (hashed IP, raw IPs are never stored),
   so clearing the browser doesn't give unlimited wishes.
 - KV is eventually consistent; a deliberate burst of simultaneous requests could squeeze
@@ -72,4 +72,4 @@ Then put the printed Worker URL in `monkeys-paw/config.js`.
 ## Cost guardrail
 
 Worst case per visitor per day = `WISHES_PER_SESSION × SESSIONS_PER_IP_PER_DAY` calls
-(9 by default). Also set a monthly spend limit in the Anthropic Console.
+(9 by default), plus any conceded wishes, which are free. Set a monthly spend limit in the Anthropic Console as the real backstop.
